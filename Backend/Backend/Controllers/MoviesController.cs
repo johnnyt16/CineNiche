@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CineNiche.API.Data;
 using CineNiche.API.DTOs;
-using CineNiche.API.Services;
 
 namespace CineNiche.API.Controllers
 {
@@ -83,17 +82,46 @@ namespace CineNiche.API.Controllers
         [HttpGet("users")]
         public async Task<ActionResult<List<MovieUserDto>>> GetUsers()
         {
-            return await _context.Users
+            var users = await _context.Users
                 .OrderBy(u => u.name ?? string.Empty)
-                .Select(u => MovieUserDto.FromEntity(u))
                 .ToListAsync();
+            
+            var userDtos = users.Select(u => new MovieUserDto
+            {
+                Id = u.user_id,
+                Name = u.name,
+                Email = u.email,
+                Phone = u.phone,
+                Age = u.age,
+                Gender = u.gender,
+                City = u.city,
+                State = u.state,
+                IsAdmin = u.isAdmin == 1
+            }).ToList();
+            
+            return Ok(userDtos);
         }
 
         [HttpGet("users/{id}")]
         public async Task<ActionResult<MovieUserDto>> GetUser(int id)
         {
             var user = await _context.Users.FindAsync(id);
-            return user == null ? NotFound() : Ok(MovieUserDto.FromEntity(user));
+            if (user == null) return NotFound();
+            
+            var userDto = new MovieUserDto
+            {
+                Id = user.user_id,
+                Name = user.name,
+                Email = user.email,
+                Phone = user.phone,
+                Age = user.age,
+                Gender = user.gender,
+                City = user.city,
+                State = user.state,
+                IsAdmin = user.isAdmin == 1
+            };
+            
+            return Ok(userDto);
         }
         
         [HttpGet("ratings/{showId}")]

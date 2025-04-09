@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create an axios instance with the base URL for our API
 const api = axios.create({
-  baseURL: 'http://localhost:5212/api', // Updated to match the running backend port
+  baseURL: 'https://localhost:5213/api', // Using HTTPS
   headers: {
     'Content-Type': 'application/json',
   },
@@ -563,41 +563,99 @@ export const usersApi = {
     }
   },
 
-  // Login (for demonstration, we'll assume backend will validate credentials)
+  // Login (using the backend authentication)
   login: async (email: string, password: string): Promise<MovieUser | null> => {
     try {
       console.log(`Attempting login for email: ${email}`);
       
-      // In a real app, we would send credentials to the backend
-      // For now, we'll just get the users and find the matching one
-      const users = await usersApi.getAllUsers();
-      console.log(`Fetched ${users.length} users from database`);
-      
-      // Debug the available users (be careful with logging passwords in production)
-      users.forEach((user, index) => {
-        console.log(`User ${index+1}: email=${user.email}, name=${user.name}`);
-      });
-      
-      // Find user with matching email
-      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      
-      if (!user) {
-        console.log(`No user found with email: ${email}`);
-        return null;
+      // Try the test endpoint first to see if basic connectivity works
+      try {
+        console.log('Testing API connectivity...');
+        const testResponse = await api.post('/auth/test-endpoint');
+        console.log('Test endpoint response:', testResponse.data);
+      } catch (testError) {
+        console.error('Test endpoint failed:', testError);
       }
       
-      console.log(`Found user: ${user.name} (${user.email})`);
+      // Try the database connectivity test
+      try {
+        console.log('Testing database connectivity...');
+        const dbTestResponse = await api.post('/auth/debug-db', { email, password });
+        console.log('Database test response:', dbTestResponse.data);
+      } catch (dbError) {
+        console.error('Database test failed:', dbError);
+      }
       
-      // Check if password matches - case sensitive
-      if (user.password === password) {
-        console.log('Password matched, login successful');
-        return user;
+      // Use the standard login endpoint
+      const response = await api.post('/auth/login-with-password', {
+        email,
+        password
+      });
+      
+      if (response.status === 200 && response.data) {
+        console.log('Login successful');
+        
+        // The backend sends back a token and user info
+        const { token, user } = response.data;
+        
+        // Store the token for future API calls
+        localStorage.setItem('authToken', token);
+        
+        // Use the user object from the response
+        return {
+          user_id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          age: user.age || 0,
+          gender: user.gender || '',
+          city: user.city || '',
+          state: user.state || '',
+          password: '', // Don't store password
+          isAdmin: user.isAdmin ? 1 : 0
+        };
       } else {
-        console.log('Password did not match, login failed');
+        console.log('Login failed');
         return null;
       }
     } catch (error) {
       console.error('Error during login:', error);
+      
+      // Fall back to debug login if standard login fails
+      try {
+        console.log('Trying debug login as fallback');
+        const debugResponse = await api.post('/auth/debug-login', {
+          email,
+          password
+        });
+        
+        if (debugResponse.status === 200 && debugResponse.data) {
+          console.log('Debug login successful');
+          
+          // The backend sends back a token and user info
+          const { token, user } = debugResponse.data;
+          
+          // Store the token for future API calls
+          localStorage.setItem('authToken', token);
+          
+          // Use the user object from the response
+          return {
+            user_id: user.id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone || '',
+            age: user.age || 0,
+            gender: user.gender || '',
+            city: user.city || '',
+            state: user.state || '',
+            password: '', // Don't store password
+            isAdmin: user.isAdmin ? 1 : 0
+          };
+        }
+      } catch (debugError) {
+        console.error('Debug login also failed:', debugError);
+      }
+      
       return null;
     }
   },

@@ -11,25 +11,33 @@ const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 
+// TEMPORARY: Set to false to bypass Stytch during development/testing
+const useStytch = true;
+
 // Define stytchConfig before using it
 const stytchConfig = {
-  publicToken: process.env.REACT_APP_STYTCH_PUBLIC_TOKEN || "public-token-test-1234abcd-1234-1234-1234-123456789012",
-  loginRedirectURL: "http://localhost:3000/dashboard",
-  sessionOptions: { duration_minutes: 60 },
+  publicToken: "public-token-test-4c9995d7-789a-4d6a-a767-0bdeb5610bfc",
+  loginURL: "http://localhost:3000/login",
+  signupURL: "http://localhost:3000/register",
+  sessionDurationMinutes: 60 // Add session duration
 };
 
 // Initialize the Stytch client with error handling
 let stytchClient;
 try {
-  stytchClient = new StytchUIClient(stytchConfig.publicToken);
-  console.log("Stytch client initialized successfully");
+  if (useStytch) {
+    stytchClient = new StytchUIClient(stytchConfig.publicToken);
+    console.log("Stytch client initialized successfully");
+  } else {
+    console.log("Stytch client initialization bypassed for development");
+  }
 } catch (error) {
   console.error("Failed to initialize Stytch client:", error);
   // We'll render without StytchProvider in this case
 }
 
 // Conditional rendering based on whether Stytch initialized correctly
-if (stytchClient) {
+if (stytchClient && useStytch) {
   root.render(
     <React.StrictMode>
       <StytchProvider stytch={stytchClient} config={stytchConfig}>

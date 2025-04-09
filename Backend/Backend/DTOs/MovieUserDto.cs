@@ -1,34 +1,41 @@
 using CineNiche.API.Data;
+using System.Text.Json.Serialization;
 
 namespace CineNiche.API.DTOs
 {
     public class MovieUserDto
     {
-        public int user_id { get; set; } // Primary key - required
-        public string name { get; set; }
-        public string email { get; set; }
-        public string phone { get; set; }
-        public int age { get; set; }
-        public string gender { get; set; }
-        public string city { get; set; }
-        public string state { get; set; }
-        public string password { get; set; }
-        public int isAdmin { get; set; } // 0 for regular users, 1 for admins
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public int Age { get; set; }
+        public string Gender { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        
+        [JsonPropertyName("isAdmin")]
+        public bool IsAdmin { get; set; }
+        public string StytchUserId { get; set; } // Changed from stytch_user_id
 
-        public static MovieUserDto FromEntity(MovieUser entity)
+        // Assuming CineNiche.API.Data.MovieUser needs creating or mapping logic adjusted
+        // Or assuming Backend.Models.User is the primary entity
+        // This mapping needs to align with the actual entity used (Backend.Models.User)
+        public static MovieUserDto FromEntity(Backend.Models.User entity) // Changed parameter type
         {
             return new MovieUserDto
             {
-                user_id = entity.user_id,
-                name = entity.name,
-                phone = entity.phone,
-                email = entity.email,
-                age = entity.age,
-                gender = entity.gender,
-                city = entity.city,
-                state = entity.state,
-                password = entity.password,
-                isAdmin = entity.isAdmin
+                Id = entity.Id, // Map from Id
+                Name = entity.Username, // Map from Username
+                Email = entity.Email,
+                // Map other properties if they exist on Backend.Models.User
+                // Phone = entity.Phone, // Example
+                // Age = entity.Age, // Example
+                // Gender = entity.Gender, // Example
+                // City = entity.City, // Example
+                // State = entity.State, // Example
+                IsAdmin = false, // Defaulting to false - needs logic if User has IsAdmin
+                StytchUserId = entity.StytchUserId
             };
         }
     }

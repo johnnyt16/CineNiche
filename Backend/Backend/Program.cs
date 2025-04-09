@@ -3,7 +3,14 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using CineNiche.API.Services;
+// using CineNiche.API.Models; // Ensure this is removed/commented
+// using CineNiche.API.Models.Stytch; // Ensure this is removed/commented
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Backend.Models;
+using CineNiche.API.DTOs;
+using Microsoft.AspNetCore.HttpsPolicy;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +33,14 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
 
+// HTTPS configuration
+builder.Services.AddHsts(options =>
+{
+    options.Preload = true;
+    options.IncludeSubDomains = true;
+    options.MaxAge = TimeSpan.FromDays(60);
+});
+
 // Add CORS
 builder.Services.AddCors(options =>
 {
@@ -35,24 +50,43 @@ builder.Services.AddCors(options =>
                 "http://localhost:3000",  // React's default port with Create React App
                 "http://localhost:5173",  // Vite's default port
                 "http://127.0.0.1:3000",
-                "http://127.0.0.1:5173"
+                "http://127.0.0.1:5173",
+                "https://localhost:3000",  // HTTPS versions
+                "https://localhost:5173", 
+                "https://127.0.0.1:3000",
+                "https://127.0.0.1:5173"
             )
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
+// Configure Stytch
 builder.Services.Configure<StytchConfig>(builder.Configuration.GetSection("Stytch"));
 
-builder.Services.AddSingleton(provider =>
+// Register the HttpClient named "StytchClient" 
+builder.Services.AddHttpClient<IStytchClient, StytchClient>();
+
+// Add JWT Authentication
+builder.Services.AddAuthentication(options =>
 {
-    var config = provider.GetRequiredService<IOptions<StytchConfig>>().Value;
-    // Use the fully qualified name with our namespace
-    return new CineNiche.API.Models.Stytch.Client(new CineNiche.API.Models.Stytch.Client.Options
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        ProjectID = config.ProjectID,
-        Secret = config.Secret
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]))
+    };
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -66,11 +100,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    // In production, use HSTS
+    app.UseHsts();
+}
 
-// Use CORS before other middleware
+// Use CORS before any other middleware
 app.UseCors("AllowFrontend");
 
+// Re-enable HTTPS redirection
 app.UseHttpsRedirection();
+
+// Add authentication middleware before authorization
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 app.Run();

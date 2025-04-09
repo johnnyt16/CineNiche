@@ -15,7 +15,10 @@ public class MovieUser
     public string gender { get; set; }
     public string city { get; set; }
     public string state { get; set; }
-    public string password { get; set; }
+    public string password { get; set; } // Original password field
+    public string? StytchUserId { get; set; } // Match database column name - Nullable
+    public string? PasswordHash { get; set; } // Match database column name - Nullable
+    public string? PasswordSalt { get; set; } // Match database column name - Nullable
     public int isAdmin { get; set; } // 0 for regular users, 1 for admins
 }
 

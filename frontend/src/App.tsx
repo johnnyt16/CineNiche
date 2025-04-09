@@ -14,6 +14,7 @@ import MyReviewsPage from './pages/MyReviewsPage';
 import ProfilePage from './pages/ProfilePage';
 import WatchPage from './pages/WatchPage';
 import PosterDebugPage from './pages/PosterDebugPage';
+import RegisterProfilePage from './pages/RegisterProfilePage';
 
 // Import components
 import Navbar from './components/Navbar';
@@ -41,6 +42,7 @@ const App: React.FC = () => {
             <Route path="/my-reviews" element={<MyReviewsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/debug/posters" element={<PosterDebugPage />} />
+            <Route path="/register-profile" element={<RegisterProfilePage />} />
           </Routes>
         </main>
         <Footer />
