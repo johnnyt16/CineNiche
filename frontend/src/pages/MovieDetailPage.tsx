@@ -828,22 +828,8 @@ useEffect(() => {
               </div>
             </div>
             
-            {/* Show average rating in the left column for logged-in users with a review */}
-            {isAuthenticated && userReview && (
-              <div className="average-rating-container">
-                <span className="meta-label">Average CineNiche Rating</span>
-                <div className="average-rating">
-                  <div className="stars">
-                    <StarRating rating={movie.averageRating} />
-                  </div>
-                  <span className="rating-number">{movie.averageRating.toFixed(1)}</span>
-                  <span className="rating-count">({movie.ratingCount} ratings)</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Show average rating in the left column for non-logged-in users */}
-            {!isAuthenticated && (
+            {/* Show average rating in the left column for all users except logged-in users who are editing their review */}
+            {(!isAuthenticated || !isReviewMode) && (
               <div className="average-rating-container">
                 <span className="meta-label">Average CineNiche Rating</span>
                 <div className="average-rating">
@@ -921,20 +907,6 @@ useEffect(() => {
                   <span className="action-icon">▶</span> Watch
                 </button>
               </div>
-              
-              {/* Show rating in right column only for logged-in users without a review */}
-              {isAuthenticated && !userReview && (
-                <div className="average-rating-container right-column-rating">
-                  <span className="meta-label">Average CineNiche Rating</span>
-                  <div className="average-rating">
-                    <div className="stars">
-                      <StarRating rating={movie.averageRating} />
-                    </div>
-                    <span className="rating-number">{movie.averageRating.toFixed(1)}</span>
-                    <span className="rating-count">({movie.ratingCount} ratings)</span>
-                  </div>
-                </div>
-              )}
               
               <div className="movie-meta-details">
                 <div className="movie-meta-item">

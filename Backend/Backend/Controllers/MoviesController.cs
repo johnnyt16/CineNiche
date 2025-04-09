@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CineNiche.API.Data;
 using CineNiche.API.DTOs;
+using CineNiche.API.Services;
 
 namespace CineNiche.API.Controllers
 {

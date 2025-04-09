@@ -11,6 +11,7 @@ using System.Text;
 using Backend.Models;
 using CineNiche.API.DTOs;
 using Microsoft.AspNetCore.HttpsPolicy;
+using CineNiche.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

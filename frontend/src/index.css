@@ -134,6 +134,7 @@ input:focus, select:focus, textarea:focus {
   min-height: 100vh;
 }
 
+/* Global container style with consistent padding for all pages */
 .container {
   width: 100%;
   max-width: var(--max-width);
@@ -672,7 +673,14 @@ input:focus, select:focus, textarea:focus {
 
 /* Movies Page */
 .movies-page {
-  padding: 1.5rem;
+  padding: 2rem 0;
+}
+
+.page-container.movies-page {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0rem;
 }
 
 .header-with-actions {
@@ -680,6 +688,12 @@ input:focus, select:focus, textarea:focus {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.header-with-actions h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
 }
 
 .header-buttons {
@@ -1133,8 +1147,14 @@ input:focus, select:focus, textarea:focus {
 
 /* Enhanced Movie Detail Page */
 .movie-detail-page {
-  padding: 3rem 0;
-  color: var(--text-color);
+  padding: 2rem 0;
+}
+
+.movie-detail-page .container {
+  width: 100%;
+  max-width: var(--max-width); 
+  margin: 0 auto;
+  padding: 0 1rem;
 }
 
 .movie-header {
