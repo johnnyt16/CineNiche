@@ -18,6 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add configuration
 builder.Configuration.AddJsonFile("appsettings.json");
 
+builder.Services.AddScoped<RecommendationService>();
+
+
 builder.Services.AddScoped<RecommendationService>(); 
 // Add services to the container
 builder.Services.AddDbContext<MoviesDbContext>(options =>
@@ -92,6 +95,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
 
 var app = builder.Build();
 
