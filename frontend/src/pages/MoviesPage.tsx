@@ -243,7 +243,7 @@ const MoviesPage: React.FC = () => {
     // We'll use a unified function for this
     fetchMoviesWithCurrentSettings(1); // Always fetch page 1 when search/filter changes
     
-  }, [debouncedSearchTerm, selectedGenre, selectedContentType, collectionFilter, isAuthenticated, favorites, watchlist]);
+  }, [debouncedSearchTerm, selectedGenre, selectedContentType]);
 
   // Fetch initial page of movies from API (only on component mount)
   useEffect(() => {
@@ -301,7 +301,6 @@ const MoviesPage: React.FC = () => {
         
         // Update state BEFORE loading posters to show results faster
         setMovies(uniqueMovies);
-        applyCollectionFilters(uniqueMovies); // Apply ONLY collection filters
         
         // Load posters in the background
         console.log('Fetching posters for newly loaded movies...');
@@ -309,7 +308,6 @@ const MoviesPage: React.FC = () => {
         
         // Update state with posters once loaded
         setMovies(moviesWithPosters);
-        applyCollectionFilters(moviesWithPosters); // Re-apply collection filters with posters
         
       } else {
         // No movies returned for this page/filter combination
@@ -373,6 +371,9 @@ const MoviesPage: React.FC = () => {
     isFilteringRef.current = true;
     
     try {
+      // Add logging to see the input list
+      console.log(`applyCollectionFilters called with ${moviesList.length} movies. First movie: ${moviesList[0]?.title || 'N/A'}`);
+      
       // Ensure we are working with unique movies
       const uniqueMovies = removeDuplicateMovies(moviesList);
       let result = uniqueMovies;
@@ -388,6 +389,8 @@ const MoviesPage: React.FC = () => {
         }
       }
       
+      // Add logging to see the final result before setting state
+      console.log(`Setting filteredMovies to ${result.length} movies. First movie: ${result[0]?.title || 'N/A'}`);
       setFilteredMovies(result);
     } finally {
       isFilteringRef.current = false;
@@ -426,13 +429,6 @@ const MoviesPage: React.FC = () => {
     ['Movie', 'TV Series'].forEach(t => types.add(t));
     return ['All Types', ...Array.from(types).sort()];
   }, [movies]);
-
-  // Remove the old filter useEffect that tried to load more
-  /*
-  useEffect(() => {
-    // ... old complex filter effect ...
-  }, [searchTerm, selectedGenre, selectedContentType, collectionFilter, isAuthenticated, favorites, watchlist]);
-  */
 
   // Add useEffect to apply collection filters whenever movies or collectionFilter changes
   useEffect(() => {
