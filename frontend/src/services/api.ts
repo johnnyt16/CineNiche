@@ -166,18 +166,7 @@ export const moviesApi = {
         }
       };
     }
-    },
-
-    getCollaborativeRecommendations: async (userId: number): Promise<MovieTitle[]> => {
-        try {
-            const response = await api.get(`/recommendations/collaborative/${userId}`);
-            return response.data;
-        } catch (error) {
-            console.error(`Error fetching collaborative recommendations for user ${userId}:`, error);
-            return [];
-        }
-    },
-
+  },
 
   // Get a single movie by ID
   getMovieById: async (id: string): Promise<MovieTitle | null> => {
