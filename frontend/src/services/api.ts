@@ -112,6 +112,60 @@ export const moviesApi = {
     }
   },
   
+  // Search movies by title - searches the entire database
+  searchMovies: async (
+    searchTerm: string, 
+    page: number = 1, 
+    pageSize: number = 20,
+    genre?: string, 
+    contentType?: string
+  ): Promise<PaginatedResponse<MovieTitle>> => {
+    try {
+      console.log(`Searching for: "${searchTerm}" (page ${page}, pageSize ${pageSize}), filters:`, { genre, contentType });
+      
+      // If search term is empty, delegate to getMoviesPaged with filters
+      if (!searchTerm || searchTerm.trim() === '') {
+        console.log('Empty search term, delegating to getMoviesPaged with filters');
+        // Make sure to await the result of the delegated call
+        return await moviesApi.getMoviesPaged(page, pageSize, genre, contentType);
+      }
+      
+      // Build params for search endpoint
+      const params: Record<string, any> = { 
+        query: searchTerm,
+        page, 
+        pageSize 
+      };
+      if (genre && genre !== 'All Genres') {
+        params.genre = genre;
+      }
+      if (contentType && contentType !== 'All Types') {
+        params.type = contentType; // Assuming backend uses 'type' for content type filter
+      }
+      
+      // Make the API call with search and filter parameters
+      const response = await api.get<PaginatedResponse<MovieTitle>>('/movies/search', { params });
+      
+      console.log(`Search returned ${response.data.movies.length} results`);
+      return response.data;
+      
+    } catch (error) {
+      console.error(`Error searching movies with term "${searchTerm}" and filters:`, { genre, contentType, error });
+      // Return empty result on error
+      return {
+        movies: [],
+        pagination: {
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: 0,
+          totalCount: 0,
+          hasNext: false,
+          hasPrevious: page > 1
+        }
+      };
+    }
+  },
+  
   // Create a new movie (for admin use)
   createMovie: async (movieData: {
     type: string;
@@ -148,7 +202,12 @@ export const moviesApi = {
   },
 
   // Get movie titles with pagination
-  getMoviesPaged: async (page: number = 1, pageSize: number = 20): Promise<PaginatedResponse<MovieTitle>> => {
+  getMoviesPaged: async (
+    page: number = 1, 
+    pageSize: number = 20,
+    genre?: string, 
+    contentType?: string
+  ): Promise<PaginatedResponse<MovieTitle>> => {
     try {
       // Pre-fetch all posters to avoid individual requests later
       if (!allPostersLoaded) {
@@ -164,41 +223,42 @@ export const moviesApi = {
         }
       }
       
+      // Build params including optional filters
+      const params: Record<string, any> = { page, pageSize };
+      if (genre && genre !== 'All Genres') {
+        params.genre = genre;
+      }
+      if (contentType && contentType !== 'All Types') {
+        params.type = contentType; // Assuming backend uses 'type'
+      }
+      
+      console.log(`Requesting page ${page} with pageSize ${pageSize}, filters:`, { genre, contentType });
+      
       try {
-        // First try the paginated endpoint
-        const response = await api.get<PaginatedResponse<MovieTitle>>('/movies/titles/paged', {
-          params: { page, pageSize }
-        });
+        // Always use the paginated endpoint with the constructed params
+        const response = await api.get<PaginatedResponse<MovieTitle>>('/movies/titles/paged', { params });
         
         console.log(`Fetched page ${page} of movies (${response.data.movies.length} items)`);
         return response.data;
-      } catch (pagedError) {
-        // If the paged endpoint fails, fall back to the non-paginated endpoint
-        console.warn('Paged endpoint failed, falling back to non-paginated endpoint:', pagedError);
+      } catch (error) {
+        console.error(`Error fetching paginated movies (page ${page}) with filters:`, { genre, contentType, error });
         
-        const allMoviesResponse = await api.get<MovieTitle[]>('/movies/titles');
-        const allMovies = allMoviesResponse.data;
-        
-        // Manually paginate the results
-        const startIndex = (page - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        const paginatedMovies = allMovies.slice(startIndex, endIndex);
-        
-        // Create a response object that matches the expected format
+        // Important: Return EMPTY results on error
         return {
-          movies: paginatedMovies,
+          movies: [],
           pagination: {
             currentPage: page,
             pageSize: pageSize,
-            totalPages: Math.ceil(allMovies.length / pageSize),
-            totalCount: allMovies.length,
-            hasNext: endIndex < allMovies.length,
+            totalPages: 0,
+            totalCount: 0,
+            hasNext: false,
             hasPrevious: page > 1
           }
         };
       }
     } catch (error) {
-      console.error(`Error fetching movies page ${page}:`, error);
+      console.error(`Error in getMoviesPaged (page ${page}) with filters:`, { genre, contentType, error });
+      // Return empty result on outer error
       return {
         movies: [],
         pagination: {

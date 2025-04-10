@@ -787,6 +787,53 @@ input:focus, select:focus, textarea:focus {
   font-size: 15px;
 }
 
+/* Small spinner for search */
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top: 2px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.search-loading-indicator {
+  position: absolute;
+  right: 0.85rem;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-clear-button {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #888;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.search-clear-button:hover {
+  color: #333;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .filter-section {
   display: flex;
   gap: 1rem;
@@ -3359,7 +3406,7 @@ select::-ms-expand {
   left: 0;
   right: 0;
   z-index: 1000;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(20, 20, 20, 0.95);
   color: white;
   font-size: 14px;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
@@ -3380,15 +3427,17 @@ select::-ms-expand {
 .cookie-content h3 {
   margin: 0;
   font-size: 18px;
+  color: #ffffff;
 }
 
 .cookie-content p {
   margin: 0;
   line-height: 1.5;
+  color: #f0f0f0;
 }
 
 .cookie-content a {
-  color: #4a90e2;
+  color: #6ab0ff;
   text-decoration: underline;
 }
 
@@ -3411,7 +3460,7 @@ select::-ms-expand {
 }
 
 .cookie-setting-item {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(40, 40, 40, 0.9);
   border-radius: 4px;
   padding: 15px;
 }
@@ -3429,12 +3478,21 @@ select::-ms-expand {
   font-weight: bold;
   gap: 8px;
   cursor: pointer;
+  color: #ffffff;
 }
 
 .cookie-setting-item p {
   margin: 0;
   font-size: 13px;
-  opacity: 0.8;
+  opacity: 0.9;
+  color: #e0e0e0;
+}
+
+.cookie-setting-item p {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.9;
+  color: #e0e0e0;
 }
 
 .cookie-settings-actions {

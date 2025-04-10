@@ -862,5 +862,70 @@ namespace CineNiche.API.Controllers
             movie.Talk_Shows_TV_Comedies = false;
             movie.Thrillers = false;
         }
+
+        [HttpGet("search")]
+        [AllowAnonymous] // Allow anyone to search movies
+        public async Task<ActionResult<object>> SearchMovies([FromQuery] string query, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                // If no search query is provided, return regular paged results
+                return await GetMovieTitlesPaged(page, pageSize);
+            }
+
+            if (page < 1) page = 1;
+            if (pageSize < 1 || pageSize > 100) pageSize = 20;
+            
+            try
+            {
+                // Normalize the search query and add wildcard characters for SQL LIKE
+                var sqlWildcardQuery = "%" + query.Trim() + "%";
+                
+                // Find movies matching the search query in multiple fields using SQL-compatible EF.Functions.Like
+                var moviesQuery = _context.Movies
+                    .Where(m => 
+                        (m.title != null && EF.Functions.Like(m.title, sqlWildcardQuery)) ||
+                        (m.director != null && EF.Functions.Like(m.director, sqlWildcardQuery)) ||
+                        (m.cast != null && EF.Functions.Like(m.cast, sqlWildcardQuery)) ||
+                        (m.description != null && EF.Functions.Like(m.description, sqlWildcardQuery))
+                    )
+                    .OrderBy(m => m.title);
+                
+                _logger.LogInformation("Executing search query: '{Query}'", sqlWildcardQuery);
+                
+                // Get total count for pagination
+                var totalCount = await moviesQuery.CountAsync();
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+                
+                _logger.LogInformation("Search count before pagination: {Count}", totalCount);
+                
+                // Get the specified page
+                var movies = await moviesQuery
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+                
+                var movieDtos = movies.Select(m => MovieTitleDto.FromEntity(m)).ToList();
+                
+                _logger.LogInformation("Search for '{Query}' returned {Count} results (page {Page})", query, totalCount, page);
+                
+                return Ok(new {
+                    movies = movieDtos,
+                    pagination = new {
+                        currentPage = page,
+                        pageSize = pageSize,
+                        totalPages = totalPages,
+                        totalCount = totalCount,
+                        hasNext = page < totalPages,
+                        hasPrevious = page > 1
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching movies with query '{Query}'", query);
+                return StatusCode(500, new { message = "An error occurred while searching movies." });
+            }
+        }
     }
 }
