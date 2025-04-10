@@ -35,8 +35,6 @@ const RegisterPage: React.FC = () => {
       username: name
     };
 
-    console.log('Submitting registration data:', registrationData);
-
     try {
       // Create axios instance with explicit HTTPS configuration
       const httpClient = axios.create({
@@ -49,11 +47,8 @@ const RegisterPage: React.FC = () => {
       // Make the request
       const response = await httpClient.post('/api/auth/register', registrationData);
 
-      console.log('Registration response status:', response.status);
-
       if (response.status >= 200 && response.status < 300) {
         const result = response.data;
-        console.log('Registration successful, received data:', result);
 
         if (result.user && result.token) {
           // Store the auth token

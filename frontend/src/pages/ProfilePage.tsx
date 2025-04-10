@@ -44,16 +44,6 @@ const ProfilePage: React.FC = () => {
     if (isEditing) {
       // Save changes would go here in a real app
       // For now, we'll just toggle the editing state
-      console.log('Profile updated:', { 
-        name: editedName, 
-        email: editedEmail,
-        phone: editedPhone,
-        birthday: editedBirthday,
-        gender: editedGender,
-        city: editedCity,
-        state: editedState,
-        zipCode: editedZipCode
-      });
     }
     setIsEditing(!isEditing);
   };

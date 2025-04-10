@@ -140,8 +140,11 @@ export const moviesApi = {
         params.genre = genre;
       }
       if (contentType && contentType !== 'All Types') {
-        params.type = contentType; // Assuming backend uses 'type' for content type filter
+        params.type = contentType; // Map frontend contentType to backend 'type'
+        console.log(`Using content type filter: ${contentType} -> type=${params.type}`);
       }
+      
+      console.log('Sending search request with params:', params);
       
       // Make the API call with search and filter parameters
       const response = await api.get<PaginatedResponse<MovieTitle>>('/movies/search', { params });

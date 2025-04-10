@@ -47,8 +47,6 @@ const RegisterProfilePage: React.FC = () => {
       state: state || null,
     };
 
-    console.log(`Submitting profile data for user ${user?.id}:`, profileData);
-
     try {
       // Create axios instance with explicit HTTPS configuration
       const httpsClient = axios.create({
@@ -62,10 +60,7 @@ const RegisterProfilePage: React.FC = () => {
       // Make the request
       const response = await httpsClient.put('/api/users/profile', profileData);
 
-      console.log('Profile update response status:', response.status);
-
       if (response.status >= 200 && response.status < 300) {
-        console.log('Profile update successful!');
         // Navigate to the main app (e.g., home) or login page after success
         // Maybe auto-login the user here? For now, let's go to login.
         navigate('/login?profileUpdated=true');

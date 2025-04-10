@@ -96,6 +96,15 @@ const convertToMovieItem = async (movieId: string): Promise<MovieItem | null> =>
   }
 };
 
+// Helper function to get initials from a name
+const getInitials = (name: string): string => {
+  return name
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase();
+};
+
 // Define provider component
 export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

@@ -17,7 +17,7 @@ export type Movie = {
   title: string;
   year: number;
   genres: string[];
-  contentType: string; // 'Movie' or 'TV Series'
+  contentType: string; // 'Movie' or 'TV Show'
   poster: string;
   description: string;
   contentRating: string;
@@ -132,7 +132,7 @@ const sampleMovies: Movie[] = [
     title: "Stranger Things",
     year: 2016,
     genres: ["Drama", "Fantasy", "Horror"],
-    contentType: "TV Series",
+    contentType: "TV Show",
     poster: "https://m.media-amazon.com/images/M/MV5BN2ZmYjg1YmItNWQ4OC00YWM0LWE0ZDktYThjOTZiZjhhN2Q2XkEyXkFqcGdeQXVyNjgxNTQ3Mjk@._V1_SX300.jpg",
     description: "When a young boy disappears, his mother, a police chief, and his friends must confront terrifying supernatural forces in order to get him back.",
     contentRating: "TV-14",
@@ -160,7 +160,7 @@ const sampleMovies: Movie[] = [
     title: "Breaking Bad",
     year: 2008,
     genres: ["Crime", "Drama", "Thriller"],
-    contentType: "TV Series",
+    contentType: "TV Show",
     poster: "https://m.media-amazon.com/images/M/MV5BMjhiMzgxZTctNDc1Ni00OTIxLTlhMTYtZTA3ZWFkODRkNmE2XkEyXkFqcGdeQXVyNzkwMjQ5NzM@._V1_SX300.jpg",
     description: "A high school chemistry teacher diagnosed with inoperable lung cancer turns to manufacturing and selling methamphetamine in order to secure his family's future.",
     contentRating: "TV-MA",
@@ -264,59 +264,46 @@ const MoviesPage: React.FC = () => {
       }
       
       setError(''); // Clear previous errors
-      console.log('Fetching movies with settings:', {
-        term: debouncedSearchTerm,
-        genre: selectedGenre,
-        type: selectedContentType,
-        page: pageToFetch,
-        size: pageSize
-      });
       
-      // Use the appropriate API call based on whether we have a search term
+      // Use the appropriate API call
       const apiCall = debouncedSearchTerm 
         ? moviesApi.searchMovies(debouncedSearchTerm, pageToFetch, pageSize, selectedGenre, selectedContentType)
         : moviesApi.getMoviesPaged(pageToFetch, pageSize, selectedGenre, selectedContentType);
         
       const response = await apiCall;
-      console.log(`API returned ${response.movies.length} movies for page ${pageToFetch}`);
       
       if (response.movies.length > 0) {
-        // Convert backend data to frontend format without posters
+        // Convert ONLY the new movies from the response
         const newMoviesWithoutPosters = await Promise.all(response.movies.map(convertToMovie));
-        console.log(`Converted ${newMoviesWithoutPosters.length} movies without posters`);
         
         // Update pagination info
         setCurrentPage(response.pagination.currentPage);
         setTotalPages(response.pagination.totalPages);
         setHasMorePages(response.pagination.hasNext);
-        console.log(`Pagination: page ${response.pagination.currentPage}/${response.pagination.totalPages}, hasNext: ${response.pagination.hasNext}`);
         
-        // Update the main movie list (append if loading more, replace if page 1)
-        const updatedMoviesList = pageToFetch === 1 
-          ? newMoviesWithoutPosters 
-          : [...movies, ...newMoviesWithoutPosters];
-          
-        // Deduplicate movies (important when loading more)
-        const uniqueMovies = removeDuplicateMovies(updatedMoviesList);
-        
-        // Update state BEFORE loading posters to show results faster
-        setMovies(uniqueMovies);
-        
-        // Load posters in the background
-        console.log('Fetching posters for newly loaded movies...');
-        const moviesWithPosters = await updatePostersInBatches(uniqueMovies);
-        
-        // Update state with posters once loaded
-        setMovies(moviesWithPosters);
+        // Fetch posters ONLY for the new movies
+        const newMoviesWithPosters = await updatePostersInBatches(newMoviesWithoutPosters);
+
+        // Determine the final list
+        // If page 1, replace the entire list with the new filtered movies
+        // If page > 1, append the new filtered movies to the existing list and deduplicate
+        const finalMoviesList = pageToFetch === 1 
+          ? newMoviesWithPosters 
+          : removeDuplicateMovies([...movies, ...newMoviesWithPosters]);
+
+        // Update the main movies state ONCE with the final list
+        setMovies(finalMoviesList);
+        // The useEffect hook listening to 'movies' and 'collectionFilter' will handle applying collection filters later if needed
         
       } else {
-        // No movies returned for this page/filter combination
+        // No movies returned from API for this page/filter
         if (pageToFetch === 1) {
+          // If it was the first page, clear the list and show error
           setError(debouncedSearchTerm 
             ? `No results found for "${debouncedSearchTerm}" with the selected filters.`
             : 'No movies found matching the selected filters.');
-          setMovies([]);
-          setFilteredMovies([]);
+          setMovies([]); // Clear movies state
+          setFilteredMovies([]); // Clear filtered movies state directly too
         }
         setHasMorePages(false); // No more pages available
       }
@@ -326,9 +313,9 @@ const MoviesPage: React.FC = () => {
         ? `API connection error: ${err.message}.`
         : 'Error loading movies.';
       setError(errorMessage);
-      // Keep existing movies if any, don't show sample data on API error anymore
-      // setMovies(sampleMovies.slice(0, pageSize)); // Optionally fallback to sample?
-      // setFilteredMovies(sampleMovies.slice(0, pageSize));
+      // Optionally clear movies on error? Or keep existing?
+      // setMovies([]); 
+      // setFilteredMovies([]);
     } finally {
       // Reset loading states
       if (pageToFetch === 1) {
@@ -365,15 +352,11 @@ const MoviesPage: React.FC = () => {
   const applyCollectionFilters = (moviesList: Movie[]) => {
     // Prevent concurrent filtering
     if (isFilteringRef.current) {
-      console.log('Filtering already in progress, skipping');
       return;
     }
     isFilteringRef.current = true;
     
     try {
-      // Add logging to see the input list
-      console.log(`applyCollectionFilters called with ${moviesList.length} movies. First movie: ${moviesList[0]?.title || 'N/A'}`);
-      
       // Ensure we are working with unique movies
       const uniqueMovies = removeDuplicateMovies(moviesList);
       let result = uniqueMovies;
@@ -381,16 +364,12 @@ const MoviesPage: React.FC = () => {
       // Apply collection filters if user is authenticated
       if (isAuthenticated) {
         if (collectionFilter === 'Favorites') {
-          console.log('Applying Favorites filter');
           result = result.filter(movie => favorites.some(fav => fav.id === movie.id));
         } else if (collectionFilter === 'Watchlist') {
-          console.log('Applying Watchlist filter');
           result = result.filter(movie => watchlist.some(item => item.id === movie.id));
         }
       }
       
-      // Add logging to see the final result before setting state
-      console.log(`Setting filteredMovies to ${result.length} movies. First movie: ${result[0]?.title || 'N/A'}`);
       setFilteredMovies(result);
     } finally {
       isFilteringRef.current = false;
@@ -426,13 +405,12 @@ const MoviesPage: React.FC = () => {
     const types = new Set<string>();
     movies.forEach(movie => types.add(movie.contentType));
     // Add expected types
-    ['Movie', 'TV Series'].forEach(t => types.add(t));
+    ['Movie', 'TV Show'].forEach(t => types.add(t));
     return ['All Types', ...Array.from(types).sort()];
   }, [movies]);
 
   // Add useEffect to apply collection filters whenever movies or collectionFilter changes
   useEffect(() => {
-    console.log('Applying collection filters due to movies/filter change');
     applyCollectionFilters(movies);
   }, [movies, collectionFilter, isAuthenticated, favorites, watchlist]); // Dependencies updated
 
@@ -626,24 +604,21 @@ const MoviesPage: React.FC = () => {
       ) : (
         <>
           <div className="movie-grid">
-            {filteredMovies.map(movie => {
-              console.log(`Rendering link for movie: ${movie.title} (ID: ${movie.id})`);
-              return (
-                <div key={movie.id} className="movie-card">
-                  <Link to={`/movies/${movie.id}`}>
-                    <div className="movie-card-inner">
-                      <img src={movie.poster} alt={movie.title} />
-                      <div className="movie-info">
-                        <h3>{movie.title}</h3>
-                        <div className="movie-card-footer">
-                          <span className="movie-year">{movie.year}</span>
-                        </div>
+            {filteredMovies.map(movie => (
+              <div key={movie.id} className="movie-card">
+                <Link to={`/movies/${movie.id}`}>
+                  <div className="movie-card-inner">
+                    <img src={movie.poster} alt={movie.title} />
+                    <div className="movie-info">
+                      <h3>{movie.title}</h3>
+                      <div className="movie-card-footer">
+                        <span className="movie-year">{movie.year}</span>
                       </div>
                     </div>
-                  </Link>
-                </div>
-              );
-            })}
+                  </div>
+                </Link>
+              </div>
+            ))}
           </div>
           
           {hasMorePages && (

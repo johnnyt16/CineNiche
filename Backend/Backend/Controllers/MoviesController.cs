@@ -57,15 +57,118 @@ namespace CineNiche.API.Controllers
 
         [HttpGet("titles/paged")]
         [AllowAnonymous] // Example: Allow anyone to get paged titles
-        public async Task<ActionResult<object>> GetMovieTitlesPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetMovieTitlesPaged(
+            [FromQuery] int page = 1, 
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? genre = null, // Add genre parameter
+            [FromQuery] string? type = null)   // Add type parameter (maps to contentType)
         {
             if (page < 1) page = 1;
             if (pageSize < 1 || pageSize > 100) pageSize = 20;
             
-            var totalCount = await _context.Movies.CountAsync();
-            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            // Start building the query
+            IQueryable<MovieTitle> query = _context.Movies;
             
-            var movies = await _context.Movies
+            // Apply filters if provided
+            if (!string.IsNullOrEmpty(genre) && genre != "All Genres")
+            {
+                _logger.LogInformation("Applying genre filter: {Genre}", genre);
+                // Filter based on boolean genre flags
+                switch (genre.Trim().ToLower())
+                {
+                    case "action":
+                        query = query.Where(m => m.Action == true || m.TV_Action == true);
+                        break;
+                    case "adventure":
+                        query = query.Where(m => m.Adventure == true);
+                        break;
+                    case "anime": // Assuming "Anime Series" maps here
+                    case "anime series":
+                        query = query.Where(m => m.Anime_Series_International_TV_Shows == true);
+                        break;
+                    case "children": // Combine Children & Kids?
+                    case "kids":
+                        query = query.Where(m => m.Children == true || m.Kids_TV == true);
+                        break;
+                    case "comedy": // Combine Comedies & TV Comedies
+                    case "comedies":
+                        query = query.Where(m => m.Comedies == true || m.TV_Comedies == true || m.Comedies_International_Movies == true || m.Comedies_Romantic_Movies == true || m.Comedies_Dramas_International_Movies == true || m.Talk_Shows_TV_Comedies == true);
+                        break;
+                    case "crime": // Assuming maps to Crime TV
+                        query = query.Where(m => m.Crime_TV_Shows_Docuseries == true);
+                        break;
+                    case "documentary":
+                    case "documentaries":
+                        query = query.Where(m => m.Documentaries == true || m.Documentaries_International_Movies == true);
+                        break;
+                    case "docuseries": // Note: User mentioned only on TV shows
+                        query = query.Where(m => m.Docuseries == true || m.Crime_TV_Shows_Docuseries == true || m.British_TV_Shows_Docuseries_International_TV_Shows == true);
+                        break;
+                    case "drama":
+                    case "dramas":
+                        query = query.Where(m => m.Dramas == true || m.TV_Dramas == true || m.Dramas_International_Movies == true || m.Dramas_Romantic_Movies == true || m.Comedies_Dramas_International_Movies == true || m.International_TV_Shows_Romantic_TV_Shows_TV_Dramas == true);
+                        break;
+                    case "family":
+                        query = query.Where(m => m.Family_Movies == true);
+                        break;
+                    case "fantasy":
+                        query = query.Where(m => m.Fantasy == true);
+                        break;
+                    case "horror":
+                        query = query.Where(m => m.Horror_Movies == true);
+                        break;
+                    case "international": // Catch-all for flags containing 'International'
+                        query = query.Where(m => m.Anime_Series_International_TV_Shows == true || m.British_TV_Shows_Docuseries_International_TV_Shows == true || m.Comedies_International_Movies == true || m.Documentaries_International_Movies == true || m.Dramas_International_Movies == true || m.International_Movies_Thrillers == true || m.International_TV_Shows_Romantic_TV_Shows_TV_Dramas == true || m.Comedies_Dramas_International_Movies == true);
+                        break;
+                    case "musicals":
+                        query = query.Where(m => m.Musicals == true);
+                        break;
+                    case "nature":
+                        query = query.Where(m => m.Nature_TV == true);
+                        break;
+                    case "reality tv":
+                    case "reality":
+                        query = query.Where(m => m.Reality_TV == true);
+                        break;
+                    case "romance": // Combine Romance/Romantic
+                    case "romantic comedies":
+                        query = query.Where(m => m.Comedies_Romantic_Movies == true || m.Dramas_Romantic_Movies == true || m.International_TV_Shows_Romantic_TV_Shows_TV_Dramas == true);
+                        break;
+                    case "spirituality":
+                        query = query.Where(m => m.Spirituality == true);
+                        break;
+                    case "talk shows":
+                        query = query.Where(m => m.Talk_Shows_TV_Comedies == true);
+                        break;
+                    case "thrillers":
+                    case "thriller":
+                        query = query.Where(m => m.Thrillers == true || m.International_Movies_Thrillers == true);
+                        break;
+                    case "language": // Language_TV_Shows seems specific
+                        query = query.Where(m => m.Language_TV_Shows == true);
+                        break;
+                    // Add other cases as needed based on the boolean flags
+                    default:
+                        _logger.LogWarning("Unsupported genre filter received: {Genre}", genre);
+                        // Optional: Decide whether to ignore the filter or return bad request
+                        break;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(type) && type != "All Types")
+            {
+                // Assuming the 'type' column/property stores Movie/TV Series
+                query = query.Where(m => m.type != null && m.type.ToLower() == type.ToLower());
+                 _logger.LogInformation("Applying type filter: {Type}", type);
+            }
+            
+            // Calculate total count and pages based on the FILTERED query
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            _logger.LogInformation("Filtered count: {Count}, Total Pages: {Pages}", totalCount, totalPages);
+            
+            // Apply ordering, pagination to the FILTERED query
+            var movies = await query
                 .OrderBy(m => m.title ?? string.Empty)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -78,8 +181,8 @@ namespace CineNiche.API.Controllers
                 pagination = new {
                     currentPage = page,
                     pageSize = pageSize,
-                    totalPages = totalPages,
-                    totalCount = totalCount,
+                    totalPages = totalPages, // Based on filtered count
+                    totalCount = totalCount, // Based on filtered count
                     hasNext = page < totalPages,
                     hasPrevious = page > 1
                 }

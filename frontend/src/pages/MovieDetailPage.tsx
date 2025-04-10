@@ -611,8 +611,7 @@ useEffect(() => {
       try {
           const recommendations = await moviesApi.getMovieRecommendations(
               movie.id, 
-              user?.id,
-              10 // explicitly request 10 recommendations
+              user?.id
           );
           
           const recommendedMovies = await Promise.all(
