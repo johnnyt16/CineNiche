@@ -60,16 +60,19 @@ const HomePage: React.FC = () => {
         fetchRecommendations();
     }, [user]);
 
-    const useInfiniteScroll = (ref: React.RefObject<HTMLDivElement>, paused: boolean) => {
+    const useInfiniteScroll = (ref: React.RefObject<HTMLDivElement>, paused: boolean, direction: 'left' | 'right') => {
         useEffect(() => {
             let animationFrameId: number;
-            const scrollSpeed = 0.5;
+            const scrollSpeed = direction === 'left' ? -0.5 : 0.5;
 
             const scroll = () => {
                 if (ref.current && !paused) {
                     ref.current.scrollLeft += scrollSpeed;
-                    if (ref.current.scrollLeft >= ref.current.scrollWidth / 2) {
+
+                    if (scrollSpeed > 0 && ref.current.scrollLeft >= ref.current.scrollWidth / 2) {
                         ref.current.scrollLeft = 0;
+                    } else if (scrollSpeed < 0 && ref.current.scrollLeft <= 0) {
+                        ref.current.scrollLeft = ref.current.scrollWidth / 2;
                     }
                 }
                 animationFrameId = requestAnimationFrame(scroll);
@@ -77,11 +80,11 @@ const HomePage: React.FC = () => {
 
             animationFrameId = requestAnimationFrame(scroll);
             return () => cancelAnimationFrame(animationFrameId);
-        }, [ref, paused]);
+        }, [ref, paused, direction]);
     };
 
-    useInfiniteScroll(carouselRef, isPaused);
-    useInfiniteScroll(recommendedCarouselRef, isRecommendedPaused);
+    useInfiniteScroll(carouselRef, isPaused, 'right');
+    useInfiniteScroll(recommendedCarouselRef, isRecommendedPaused, 'left');
 
     return (
         <div className="home-page">
