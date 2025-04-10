@@ -37,7 +37,7 @@ const HomePage: React.FC = () => {
     useEffect(() => {
         const fetchMovies = async () => {
             try {
-                const response = await moviesApi.getMoviesPaged(1, 6);
+                const response = await moviesApi.getMoviesPaged(1, 10);
                 const movies = await Promise.all(response.movies.map(convertToMovie));
                 setMovieImages([...movies, ...movies]);
             } catch (err) {
@@ -60,43 +60,28 @@ const HomePage: React.FC = () => {
         fetchRecommendations();
     }, [user]);
 
-    useEffect(() => {
-        let animationFrameId: number;
-        const scrollSpeed = 0.5;
+    const useInfiniteScroll = (ref: React.RefObject<HTMLDivElement>, paused: boolean) => {
+        useEffect(() => {
+            let animationFrameId: number;
+            const scrollSpeed = 0.5;
 
-        const scroll = () => {
-            if (carouselRef.current && !isPaused) {
-                carouselRef.current.scrollLeft += scrollSpeed;
-                const maxScroll = carouselRef.current.scrollWidth / 2;
-                if (carouselRef.current.scrollLeft >= maxScroll) {
-                    carouselRef.current.scrollLeft -= maxScroll;
+            const scroll = () => {
+                if (ref.current && !paused) {
+                    ref.current.scrollLeft += scrollSpeed;
+                    if (ref.current.scrollLeft >= ref.current.scrollWidth / 2) {
+                        ref.current.scrollLeft = 0;
+                    }
                 }
-            }
+                animationFrameId = requestAnimationFrame(scroll);
+            };
+
             animationFrameId = requestAnimationFrame(scroll);
-        };
+            return () => cancelAnimationFrame(animationFrameId);
+        }, [ref, paused]);
+    };
 
-        animationFrameId = requestAnimationFrame(scroll);
-        return () => cancelAnimationFrame(animationFrameId);
-    }, [isPaused]);
-
-    useEffect(() => {
-        let animationFrameId: number;
-        const scrollSpeed = 0.5;
-
-        const scroll = () => {
-            if (recommendedCarouselRef.current && !isRecommendedPaused) {
-                recommendedCarouselRef.current.scrollLeft += scrollSpeed;
-                const maxScroll = recommendedCarouselRef.current.scrollWidth / 2;
-                if (recommendedCarouselRef.current.scrollLeft >= maxScroll) {
-                    recommendedCarouselRef.current.scrollLeft -= maxScroll;
-                }
-            }
-            animationFrameId = requestAnimationFrame(scroll);
-        };
-
-        animationFrameId = requestAnimationFrame(scroll);
-        return () => cancelAnimationFrame(animationFrameId);
-    }, [isRecommendedPaused]);
+    useInfiniteScroll(carouselRef, isPaused);
+    useInfiniteScroll(recommendedCarouselRef, isRecommendedPaused);
 
     return (
         <div className="home-page">
@@ -128,8 +113,8 @@ const HomePage: React.FC = () => {
                         onMouseEnter={() => setIsRecommendedPaused(true)}
                         onMouseLeave={() => setIsRecommendedPaused(false)}
                     >
-                        <div className="film-scroll-track flex gap-4">
-                            {recommendedMovies.map((movie, idx) => (
+                        <div className="film-scroll-track flex gap-4 w-max">
+                            {[...recommendedMovies, ...recommendedMovies].map((movie, idx) => (
                                 <Link to={`/movies/${movie.id}`} key={`rec-${movie.id}-${idx}`} className="film-item flex-none w-48">
                                     <img src={movie.poster} alt={movie.title} />
                                     <p>{movie.title}</p>
@@ -150,8 +135,8 @@ const HomePage: React.FC = () => {
                     onMouseEnter={() => setIsPaused(true)}
                     onMouseLeave={() => setIsPaused(false)}
                 >
-                    <div className="film-scroll-track flex gap-4">
-                        {movieImages.map((movie, idx) => (
+                    <div className="film-scroll-track flex gap-4 w-max">
+                        {[...movieImages, ...movieImages].map((movie, idx) => (
                             <Link to={`/movies/${movie.id}`} key={`recent-${movie.id}-${idx}`} className="film-item flex-none w-48">
                                 <img src={movie.poster} alt={movie.title} />
                                 <p>{movie.title}</p>

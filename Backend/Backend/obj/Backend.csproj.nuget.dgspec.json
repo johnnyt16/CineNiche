@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\jonat\\source\\repos\\CineNiche_\\backend\\backend\\Backend.csproj": {}
+    "C:\\Users\\jonat\\source\\repos\\recsbackend\\backend\\backend\\Backend.csproj": {}
   },
   "projects": {
-    "C:\\Users\\jonat\\source\\repos\\CineNiche_\\backend\\backend\\Backend.csproj": {
+    "C:\\Users\\jonat\\source\\repos\\recsbackend\\backend\\backend\\Backend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\jonat\\source\\repos\\CineNiche_\\backend\\backend\\Backend.csproj",
+        "projectUniqueName": "C:\\Users\\jonat\\source\\repos\\recsbackend\\backend\\backend\\Backend.csproj",
         "projectName": "Backend",
-        "projectPath": "C:\\Users\\jonat\\source\\repos\\CineNiche_\\backend\\backend\\Backend.csproj",
+        "projectPath": "C:\\Users\\jonat\\source\\repos\\recsbackend\\backend\\backend\\Backend.csproj",
         "packagesPath": "C:\\Users\\jonat\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\jonat\\source\\repos\\CineNiche_\\backend\\backend\\obj\\",
+        "outputPath": "C:\\Users\\jonat\\source\\repos\\recsbackend\\backend\\backend\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
