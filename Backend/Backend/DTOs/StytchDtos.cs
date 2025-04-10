@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace CineNiche.API.DTOs // Or Backend.DTOs if that's preferred
 {
@@ -50,4 +51,39 @@ namespace CineNiche.API.DTOs // Or Backend.DTOs if that's preferred
         public string MiddleName { get; set; }
     }
     */
+
+    // Add these DTOs for 2FA
+
+    public class Enable2FARequest
+    {
+        [Required]
+        [Phone]
+        public string PhoneNumber { get; set; } = string.Empty;
+    }
+
+    public class Verify2FARequest
+    {
+        [Required]
+        [Phone]
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(6, MinimumLength = 6)]
+        public string Code { get; set; } = string.Empty;
+    }
+
+    public class StytchSmsResponse
+    {
+        public string? MethodId { get; set; }
+        public string? RequestId { get; set; }
+        public int? StatusCode { get; set; }
+    }
+
+    public class StytchAuthenticateResponse
+    {
+        public bool AuthenticateSuccess { get; set; }
+        public string? RequestId { get; set; }
+        public int? StatusCode { get; set; }
+        public string? UserId { get; set; }
+    }
 } 

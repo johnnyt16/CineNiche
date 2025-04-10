@@ -1,24 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { moviesData } from './MovieDetailPage';
+import { moviesApi } from '../services/api';
 
-// Define Movie type
-interface Movie {
-  id: string;
-  title: string;
-  imageUrl: string;
-  genre: string;
-  year: number;
-  director: string;
-  cast: string[];
-  country: string;
-  description: string;
-  contentRating: string;
-  runtime: number;
-  averageRating: number;
-  ratingCount: number;
-}
+// Define Genre options
+const genreOptions = [
+  'Action', 'Adventure', 'Anime', 'British TV', 'Children', 
+  'Comedy', 'Crime', 'Documentary', 'Docuseries', 'Drama', 
+  'Family', 'Fantasy', 'Horror', 'International', 'Musical',
+  'Nature', 'Reality TV', 'Romance', 'Spirituality', 
+  'Talk Show', 'Thriller'
+];
 
 const AddMoviePage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,7 +19,7 @@ const AddMoviePage: React.FC = () => {
   // Form state
   const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('https://via.placeholder.com/300x450?text=New+Movie');
-  const [genre, setGenre] = useState('');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [director, setDirector] = useState('');
   const [castInput, setCastInput] = useState('');
@@ -35,6 +27,9 @@ const AddMoviePage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [contentRating, setContentRating] = useState('');
   const [runtime, setRuntime] = useState(90); // Default to 90 minutes
+  const [type, setType] = useState('Movie'); // Default to Movie
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Redirect if not authenticated or not admin
   React.useEffect(() => {
@@ -47,40 +42,54 @@ const AddMoviePage: React.FC = () => {
   const handleCastChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCastInput(e.target.value);
   };
+
+  // Handle genre selection
+  const handleGenreChange = (genre: string) => {
+    setSelectedGenres(prev => {
+      if (prev.includes(genre)) {
+        return prev.filter(g => g !== genre);
+      } else {
+        return [...prev, genre];
+      }
+    });
+  };
   
   // Submit form
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
     
-    // Generate an ID that doesn't exist in the current data
-    // In a real app, the backend would handle this
-    // Convert existing string IDs to numbers for calculation, then back to string for the new ID
-    const highestId = Math.max(...moviesData.map(m => parseInt(m.id))) + 1;
-    const newId = highestId.toString();
-    
-    // Create a new movie object
-    const newMovie: Movie = {
-      id: newId,
-      title,
-      imageUrl,
-      genre,
-      year,
-      director,
-      cast: castInput.split(',').map(item => item.trim()).filter(item => item),
-      country,
-      description,
-      contentRating,
-      runtime,
-      averageRating: 0,
-      ratingCount: 0
-    };
-    
-    // In a real app, this would be an API call
-    // For now, just add to our local data store
-    moviesData.push(newMovie);
-    
-    // Redirect to the new movie's detail page
-    navigate(`/movies/${newId}`);
+    try {
+      // Prepare duration in the correct format
+      const duration = `${runtime} min`;
+      
+      // Create a new movie using the API
+      const result = await moviesApi.createMovie({
+        title,
+        type,
+        director,
+        cast: castInput,
+        country,
+        release_year: year,
+        rating: contentRating,
+        duration,
+        description,
+        genres: selectedGenres
+      });
+      
+      if (result) {
+        // Redirect to the new movie's detail page
+        navigate(`/movies/${result.show_id}`);
+      } else {
+        setError('Failed to create movie. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error creating movie:', err);
+      setError('An error occurred while creating the movie.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   return (
@@ -92,6 +101,13 @@ const AddMoviePage: React.FC = () => {
         
         <div className="admin-edit-form">
           <h2>Add New Movie</h2>
+          
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit}>
             <div className="form-columns">
               <div className="form-column">
@@ -107,33 +123,20 @@ const AddMoviePage: React.FC = () => {
                 </div>
                 
                 <div className="form-group">
-                  <label htmlFor="imageUrl">Image URL</label>
-                  <input
-                    id="imageUrl"
-                    type="text"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
+                  <label htmlFor="type">Type</label>
+                  <select
+                    id="type"
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
                     required
-                  />
-                  {imageUrl && (
-                    <div className="image-preview">
-                      <img src={imageUrl} alt="Preview" />
-                    </div>
-                  )}
+                  >
+                    <option value="Movie">Movie</option>
+                    <option value="TV Show">TV Show</option>
+                    <option value="Documentary">Documentary</option>
+                  </select>
                 </div>
                 
                 <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="genre">Genre</label>
-                    <input
-                      id="genre"
-                      type="text"
-                      value={genre}
-                      onChange={(e) => setGenre(e.target.value)}
-                      required
-                    />
-                  </div>
-                  
                   <div className="form-group">
                     <label htmlFor="year">Year</label>
                     <input
@@ -141,6 +144,17 @@ const AddMoviePage: React.FC = () => {
                       type="number"
                       value={year}
                       onChange={(e) => setYear(Number(e.target.value))}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="contentRating">Content Rating</label>
+                    <input
+                      id="contentRating"
+                      type="text"
+                      value={contentRating}
+                      onChange={(e) => setContentRating(e.target.value)}
                       required
                     />
                   </div>
@@ -181,27 +195,31 @@ const AddMoviePage: React.FC = () => {
                   />
                 </div>
                 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="contentRating">Content Rating</label>
-                    <input
-                      id="contentRating"
-                      type="text"
-                      value={contentRating}
-                      onChange={(e) => setContentRating(e.target.value)}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="runtime">Runtime (minutes)</label>
-                    <input
-                      id="runtime"
-                      type="number"
-                      value={runtime}
-                      onChange={(e) => setRuntime(Number(e.target.value))}
-                      required
-                    />
+                <div className="form-group">
+                  <label htmlFor="runtime">Runtime (minutes)</label>
+                  <input
+                    id="runtime"
+                    type="number"
+                    value={runtime}
+                    onChange={(e) => setRuntime(Number(e.target.value))}
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Genres</label>
+                  <div className="genre-checkboxes">
+                    {genreOptions.map(genre => (
+                      <div key={genre} className="genre-checkbox">
+                        <input
+                          type="checkbox"
+                          id={`genre-${genre}`}
+                          checked={selectedGenres.includes(genre)}
+                          onChange={() => handleGenreChange(genre)}
+                        />
+                        <label htmlFor={`genre-${genre}`}>{genre}</label>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 
@@ -219,11 +237,18 @@ const AddMoviePage: React.FC = () => {
             </div>
             
             <div className="form-actions">
-              <button type="submit" className="btn-primary">Add Movie</button>
+              <button 
+                type="submit" 
+                className="btn-primary" 
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Creating...' : 'Add Movie'}
+              </button>
               <button
                 type="button" 
                 className="btn-secondary"
                 onClick={() => navigate('/movies')}
+                disabled={isSubmitting}
               >
                 Cancel
               </button>

@@ -19,35 +19,40 @@ import RegisterProfilePage from './pages/RegisterProfilePage';
 // Import components
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import CookieConsent from './components/CookieConsent';
 
-// Import auth provider
+// Import providers
 import { AuthProvider } from './context/AuthContext';
+import { CookieConsentProvider } from './context/CookieConsentContext';
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <div className="app">
-        <Navbar />
-        <main className="main-content">
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/movies" element={<MoviesPage />} />
-            <Route path="/movies/add" element={<AddMoviePage />} />
-            <Route path="/movies/:id" element={<MovieDetailPage />} />
-            <Route path="/watch/:id" element={<WatchPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/my-reviews" element={<MyReviewsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/debug/posters" element={<PosterDebugPage />} />
-            <Route path="/register-profile" element={<RegisterProfilePage />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
-    </AuthProvider>
+    <CookieConsentProvider>
+      <AuthProvider>
+        <div className="app">
+          <Navbar />
+          <main className="main-content">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/movies" element={<MoviesPage />} />
+              <Route path="/movies/add" element={<AddMoviePage />} />
+              <Route path="/movies/:id" element={<MovieDetailPage />} />
+              <Route path="/watch/:id" element={<WatchPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/my-reviews" element={<MyReviewsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/debug/posters" element={<PosterDebugPage />} />
+              <Route path="/register-profile" element={<RegisterProfilePage />} />
+            </Routes>
+          </main>
+          <Footer />
+          <CookieConsent />
+        </div>
+      </AuthProvider>
+    </CookieConsentProvider>
   );
 };
 

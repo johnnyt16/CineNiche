@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth, ReviewedMovie, MovieItem } from '../context/AuthContext';
 import { Pencil, Trash2 } from 'lucide-react';
 import { moviesApi, MovieTitle } from '../services/api';
+import { usersApi } from '../services/api';
 
 // Star Rating component
 const StarRating: React.FC<{ 
@@ -468,6 +469,7 @@ const MovieDetailPage: React.FC = () => {
     user,
     reviewedMovies, 
     addReview, 
+    loadUserReviews,
     toggleFavorite, 
     toggleWatchlist, 
     isInFavorites: checkFavorites, 
@@ -655,25 +657,45 @@ useEffect(() => {
   }, [isReviewMode]);
   
   // Handle review submission
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (movie && reviewRating > 0) {
-      const reviewData: ReviewedMovie = {
-        id: movie.id,
-        title: movie.title,
-        imageUrl: movie.imageUrl,
-        genre: movie.genre,
-        year: movie.year,
-        rating: reviewRating,
-        review: reviewText
-      };
-      
-      addReview(reviewData);
-      setIsReviewMode(false);
-      
-      // Scroll back to top
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (movie && reviewRating > 0 && user) {
+      try {
+        // First save the rating to the database
+        const ratingResult = await usersApi.addOrUpdateRating(user.id, movie.id, reviewRating, reviewText);
+        
+        if (ratingResult) {
+          // Then create the review object for the UI
+          const reviewData: ReviewedMovie = {
+            id: movie.id,
+            title: movie.title,
+            imageUrl: movie.imageUrl,
+            genre: movie.genre,
+            year: movie.year,
+            rating: reviewRating,
+            review: reviewText
+          };
+          
+          // Update local state via the AuthContext
+          addReview(reviewData);
+          
+          // Load the updated reviews from the database via the AuthContext
+          if (user) {
+            await loadUserReviews(user.id);
+          }
+          
+          setIsReviewMode(false);
+          
+          // Scroll back to top
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          alert('Failed to save your review. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error submitting review:', error);
+        alert('An error occurred while saving your review. Please try again.');
+      }
     }
   };
 

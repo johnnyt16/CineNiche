@@ -105,6 +105,7 @@ _ReSharper*/
 appsettings.Development.json
 appsettings.local.json
 appsettings.*.local.json
+Backend/Backend/appsettings.json
 
 # Database migrations backup
 *.bak
@@ -117,4 +118,9 @@ appsettings.*.local.json
 .env.production.local
 
 # User-specific settings
-*/Properties/launchSettings.json 
+*/Properties/launchSettings.json
+
+# Rider specific files - Add if you use Rider
+#.idea/
+#*.iml
+#*.userprefs 

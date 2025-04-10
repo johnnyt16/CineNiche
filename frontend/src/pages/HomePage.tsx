@@ -239,7 +239,7 @@ const HomePage: React.FC = () => {
       
       {isAuthenticated && (
         <div className="featured-films-section recommended-section">
-          <div className="section-header container">
+          <div className="section-header container" style={{ display: 'block', textAlign: 'center' }}>
             <h2>Recommended For You</h2>
           </div>
           <div 
@@ -264,8 +264,8 @@ const HomePage: React.FC = () => {
       )}
       
       <div className="featured-films-section">
-        <div className="section-header container">
-          <h2>Recently Added</h2>
+        <div className="section-header container" style={{ display: 'block', textAlign: 'center' }}>
+          <h2>Top Rated</h2>
         </div>
         <div 
           className="film-scroll-container" 

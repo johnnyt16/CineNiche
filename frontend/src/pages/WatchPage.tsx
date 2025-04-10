@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Play, Pause, Volume2, VolumeX, Settings, Maximize, SkipBack, SkipForward, ArrowLeft } from 'lucide-react';
-import { moviesData } from './MovieDetailPage';
 import { useAuth } from '../context/AuthContext';
 import { Pencil, Heart, Bookmark, Plus, Info } from 'lucide-react';
+import { moviesApi } from '../services/api';
 
 interface Movie {
   id: string;
@@ -41,23 +41,83 @@ const WatchPage: React.FC = () => {
   }, [isAuthenticated, navigate]);
   
   useEffect(() => {
-    // In a real app, this would be an API call
-    setLoading(true);
-    setTimeout(() => {
-      const foundMovie = moviesData.find(m => m.id === id);
-      setMovie(foundMovie || null);
-      setLoading(false);
+    const fetchMovie = async () => {
+      if (!id) return;
       
-      if (foundMovie) {
-        document.title = `Watch: ${foundMovie.title} | CineNiche`;
-        // Set up fake duration based on movie runtime
-        const totalMinutes = foundMovie.runtime;
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        setDuration(`${hours}:${minutes < 10 ? '0' + minutes : minutes}:00`);
-        setCurrentTime('0:00:00');
+      setLoading(true);
+      try {
+        // Fetch movie data from API
+        const movieData = await moviesApi.getMovieById(id);
+        
+        if (movieData) {
+          // Get poster URL
+          const posterUrl = await moviesApi.getMoviePosterUrl(movieData.title || '') || '/images/placeholder-movie.jpg';
+          
+          // Process cast array
+          let castArray: string[] = ['Unknown Cast'];
+          if (movieData.cast) {
+            if (movieData.cast.includes(',')) {
+              castArray = movieData.cast.split(',').map(actor => actor.trim());
+            } else {
+              const words = movieData.cast.trim().split(/\s+/);
+              castArray = [];
+              for (let i = 0; i < words.length; i += 2) {
+                if (i + 1 < words.length) {
+                  castArray.push(`${words[i]} ${words[i + 1]}`);
+                } else {
+                  castArray.push(words[i]);
+                }
+              }
+              if (castArray.length === 0) {
+                castArray = ['Unknown Cast'];
+              }
+            }
+          }
+          
+          // Get genre from categories
+          const categories = movieData.Categories || movieData.categories || [];
+          const genre = categories.length > 0 ? categories.join(', ') : 'Unknown';
+          
+          // Check for runtime in both camelCase and PascalCase
+          const runtime = movieData.RuntimeMinutes || movieData.runtimeMinutes || 90; // Default to 90 mins
+          
+          // Create movie object
+          const movie: Movie = {
+            id: movieData.show_id,
+            title: movieData.title || 'Unknown Title',
+            imageUrl: posterUrl,
+            genre: genre,
+            year: movieData.release_year || 0,
+            director: movieData.director || 'Unknown',
+            cast: castArray,
+            country: movieData.country || 'Unknown',
+            description: movieData.description || 'No description available.',
+            contentRating: movieData.rating || 'NR',
+            runtime: runtime,
+            averageRating: 0,
+            ratingCount: 0
+          };
+          
+          setMovie(movie);
+          document.title = `Watch: ${movie.title} | CineNiche`;
+          
+          // Set up fake duration based on movie runtime
+          const totalMinutes = movie.runtime;
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          setDuration(`${hours}:${minutes < 10 ? '0' + minutes : minutes}:00`);
+          setCurrentTime('0:00:00');
+        } else {
+          console.error('Movie not found:', id);
+        }
+      } catch (error) {
+        console.error('Error fetching movie:', error);
+      } finally {
+        setLoading(false);
       }
-    }, 500); // Simulate API delay
+    };
+    
+    fetchMovie();
   }, [id]);
   
   const togglePlay = () => {

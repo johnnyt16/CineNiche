@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace CineNiche.API.DTOs
 {
@@ -18,6 +19,37 @@ namespace CineNiche.API.DTOs
         
         // Changed to standard property to ensure it's serialized
         public int? RuntimeMinutes { get; set; }
+        
+        // Add this to make it easier for frontend to access category information
+        public bool HasGenre(string genre)
+        {
+            if (Categories == null || !Categories.Any())
+                return false;
+                
+            return Categories.Any(c => c.Equals(genre, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        // Add this to provide more flexibility for frontend filters
+        [JsonIgnore] // Don't serialize these properties to avoid duplication
+        public bool IsAction => HasGenre("Action");
+        
+        [JsonIgnore]
+        public bool IsComedy => HasGenre("Comedies") || HasGenre("Comedy");
+        
+        [JsonIgnore]
+        public bool IsDrama => HasGenre("Dramas") || HasGenre("Drama");
+        
+        [JsonIgnore]
+        public bool IsDocumentary => HasGenre("Documentaries") || HasGenre("Documentary");
+        
+        [JsonIgnore]
+        public bool IsInternational => Categories?.Any(c => c.Equals("International", StringComparison.OrdinalIgnoreCase)) == true;
+        
+        [JsonIgnore]
+        public bool IsRomance => Categories?.Any(c => c.Contains("Romance", StringComparison.OrdinalIgnoreCase)) == true;
+        
+        [JsonIgnore]
+        public bool IsThriller => HasGenre("Thrillers") || HasGenre("Thriller");
         
         public static MovieTitleDto FromEntity(MovieTitle entity)
         {

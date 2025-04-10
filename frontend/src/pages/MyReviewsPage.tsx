@@ -46,13 +46,11 @@ const MyReviewsPage: React.FC = () => {
                       <img src={movie.imageUrl} alt={movie.title} />
                     </div>
                     <div className="review-content">
-                      <h3>{movie.title}</h3>
-                      <div className="review-meta">
-                        <span className="review-year">{movie.year}</span>
-                        <span className="review-genre">{movie.genre}</span>
-                      </div>
+                      <h3 className="review-title">{movie.title}</h3>
                       <StarRating rating={movie.rating} />
-                      <p className="review-text">{movie.review.substring(0, 100)}...</p>
+                      <div className="review-text-container">
+                        <p className="review-text">{movie.review}</p>
+                      </div>
                     </div>
                   </div>
                 </Link>

@@ -17,6 +17,7 @@ using CineNiche.API.Data;
 using Microsoft.EntityFrameworkCore;
 using CineNiche.API.DTOs;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Backend.Controllers
 {
@@ -126,16 +127,18 @@ namespace Backend.Controllers
                                ?? "unknown@example.com";
                 
                 // Find or create user in our database
-                var user = await FindOrCreateUserFromStytchAsync(userId, email);
+                var movieUser = await FindOrCreateUserFromStytchAsync(userId, email);
                 
-                // Generate a JWT token for subsequent API requests
-                var token = GenerateJwtToken(user);
+                // Generate a JWT token using MovieUser
+                var token = GenerateJwtToken(movieUser); 
                 
-                // Return the defined LoginResponseDto
+                // Convert MovieUser to UserInfoDto for response
+                var userInfoDto = movieUser.ToUserInfoDto();
+
                 return Ok(new LoginResponseDto
                 {
                     Token = token,
-                    User = user.ToUserInfoDto()
+                    User = userInfoDto
                 });
             }
             catch (Exception ex)
@@ -195,22 +198,27 @@ namespace Backend.Controllers
             }
         }
 
-        private string GenerateJwtToken(User user)
+        private string GenerateJwtToken(MovieUser movieUser)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Secret"]);
             
             var claims = new List<Claim>
             {
-                new Claim("id", user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.NameIdentifier, user.Username ?? user.Email)
+                // Use the standard ClaimTypes.NameIdentifier for the user ID to be more compliant
+                new Claim(ClaimTypes.NameIdentifier, movieUser.user_id.ToString()),
+                // Still keep the "id" claim for backward compatibility
+                new Claim("id", movieUser.user_id.ToString()),
+                new Claim(ClaimTypes.Email, movieUser.email),
+                new Claim(ClaimTypes.Name, movieUser.name ?? movieUser.email),
+                // Add Role claim based on isAdmin
+                new Claim(ClaimTypes.Role, movieUser.isAdmin == 1 ? "Admin" : "User")
             };
             
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddDays(7),
+                Expires = DateTime.UtcNow.AddDays(7), // Consider reducing expiry for production
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"],
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
@@ -220,7 +228,7 @@ namespace Backend.Controllers
             return tokenHandler.WriteToken(token);
         }
 
-        private async Task<User> FindOrCreateUserFromStytchAsync(string stytchUserId, string email)
+        private async Task<MovieUser> FindOrCreateUserFromStytchAsync(string stytchUserId, string email)
         {
             // Try to find User by StytchUserId first
             var movieUser = await _context.Users
@@ -229,7 +237,7 @@ namespace Backend.Controllers
             if (movieUser != null)
             {
                 // Convert to User model
-                return movieUser.ToUser();
+                return movieUser;
             }
 
             // Then look for user by email
@@ -251,7 +259,7 @@ namespace Backend.Controllers
                     throw new InvalidOperationException($"User with email {email} is already linked to a different Stytch account.");
                 }
 
-                return movieUser.ToUser(); // Convert to User model
+                return movieUser; // Convert to User model
             }
 
             // Create a new user record
@@ -274,7 +282,7 @@ namespace Backend.Controllers
             _logger.LogInformation("Created new user with ID {UserId} for Stytch ID {StytchUserId} and email {Email}.", 
                 newMovieUser.user_id, stytchUserId, email);
                 
-            return newMovieUser.ToUser(); // Convert to User model
+            return newMovieUser; // Convert to User model
         }
 
         // New endpoint for user registration
@@ -289,6 +297,34 @@ namespace Backend.Controllers
                     _logger.LogWarning("Registration failed for {Email}: Invalid model state.", request.Email);
                     return BadRequest(ModelState);
                 }
+
+                // *** Add Password Complexity Validation ***
+                var passwordErrors = new List<string>();
+                if (string.IsNullOrEmpty(request.Password) || request.Password.Length < 10)
+                {
+                    passwordErrors.Add("Password must be at least 10 characters long.");
+                }
+                if (!request.Password.Any(char.IsLower))
+                {
+                    passwordErrors.Add("Password must contain at least one lowercase letter.");
+                }
+                if (!request.Password.Any(char.IsUpper))
+                {
+                    passwordErrors.Add("Password must contain at least one uppercase letter.");
+                }
+                if (!request.Password.Any(char.IsDigit))
+                {
+                    passwordErrors.Add("Password must contain at least one digit.");
+                }
+                // Optionally add symbol check: !request.Password.Any(ch => !char.IsLetterOrDigit(ch))
+
+                if (passwordErrors.Any())
+                {
+                     _logger.LogWarning("Registration failed for {Email}: Password complexity requirements not met.", request.Email);
+                     // Return a BadRequest with specific password errors
+                     return BadRequest(new { message = "Password does not meet complexity requirements.", errors = passwordErrors });
+                }
+                // *** End Password Complexity Validation ***
 
                 // 2. Check if user already exists
                 var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.email == request.Email);
@@ -368,16 +404,16 @@ namespace Backend.Controllers
                     _logger.LogInformation("Successfully registered new user with ID {UserId} and email {Email}", 
                         newMovieUser.user_id, newMovieUser.email);
 
-                    // Convert to User model for generating JWT
-                    var user = newMovieUser.ToUser();
+                    // Generate JWT using the created MovieUser
+                    var token = GenerateJwtToken(newMovieUser);
                     
-                    // 7. Generate JWT and return Success Response
-                    var token = GenerateJwtToken(user);
+                    // Convert MovieUser to UserInfoDto for response
+                    var userInfoDto = newMovieUser.ToUserInfoDto();
                     
                     // Return 200 OK with LoginResponseDto
                     return Ok(new LoginResponseDto
                     {
-                        User = user.ToUserInfoDto(),
+                        User = userInfoDto,
                         Token = token
                     });
                 }
@@ -451,52 +487,51 @@ namespace Backend.Controllers
             
             try
             {
-                _logger.LogInformation("Login attempt for email: {Email}", request.Email);
+                _logger.LogInformation("Attempting login for email: {Email}", request.Email);
                 
                 debugStep = "db-query";
-                var user = await _context.Users
+                var movieUser = await _context.Users
                     .AsNoTracking()
                     .FirstOrDefaultAsync(u => u.email == request.Email);
                 
                 debugStep = "user-check";
-                if (user == null)
+                if (movieUser == null)
                 {
                     _logger.LogWarning("User not found: {Email}", request.Email);
                     return Unauthorized(new { message = "Invalid email or password" });
                 }
                 
-                _logger.LogInformation("User found: ID={UserId}, Email={Email}", user.user_id, user.email);
+                _logger.LogInformation("User found: ID={UserId}, Email={Email}", movieUser.user_id, movieUser.email);
 
-                // Return early with a successful user lookup only to test database connection
-                /* // REMOVE THIS DEBUG BLOCK
-                return Ok(new
+                // Check if this is a hardcoded admin account without hash/salt
+                if (movieUser.isAdmin == 1 && (string.IsNullOrEmpty(movieUser.PasswordHash) || string.IsNullOrEmpty(movieUser.PasswordSalt)))
                 {
-                    token = "hard-coded-token-for-testing", 
-                    user = new
+                    // For hardcoded admin accounts, check if the plain password matches
+                    if (request.Password == movieUser.password)
                     {
-                        id = user.user_id,
-                        email = user.email,
-                        name = user.name ?? "User",
-                        isAdmin = user.isAdmin == 1
+                        // Password matches the plaintext password, generate token
+                        var adminToken = GenerateJwtToken(movieUser);
+                        return Ok(new LoginResponseDto { 
+                            Token = adminToken, 
+                            User = movieUser.ToUserInfoDto() 
+                        });
                     }
-                });
-                */ // END REMOVE
-
-                // The code below this point is not executed - will be restored once we fix the issue
-
-                // /* // REMOVE COMMENT START
-                // Verify Password
-                debugStep = "verify-password";
-                // Ensure user has PasswordHash and PasswordSalt populated
-                if (string.IsNullOrEmpty(user.PasswordHash) || string.IsNullOrEmpty(user.PasswordSalt))
-                {
-                    _logger.LogWarning("Password login attempt for user {UserId} failed: Missing hash or salt.", user.user_id);
-                    // Optionally, attempt Stytch password auth here if StytchUserId exists?
-                    // For now, treat as invalid credentials.
-                    return Unauthorized(new { message = "Invalid email or password. Account may use external login." });
+                    else
+                    {
+                        _logger.LogWarning("Invalid password for hardcoded admin: {Email}", request.Email);
+                        return Unauthorized(new { message = "Invalid email or password" });
+                    }
                 }
 
-                bool isPasswordValid = VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt);
+                // Verify Password with hash & salt
+                debugStep = "verify-password";
+                if (string.IsNullOrEmpty(movieUser.PasswordHash) || string.IsNullOrEmpty(movieUser.PasswordSalt))
+                {
+                    _logger.LogWarning("Password login attempt for user {UserId} failed: Missing hash or salt.", movieUser.user_id);
+                    return Unauthorized(new { message = "Invalid email or password" });
+                }
+
+                bool isPasswordValid = VerifyPassword(request.Password, movieUser.PasswordHash, movieUser.PasswordSalt);
                 if (!isPasswordValid)
                 {
                     _logger.LogWarning("Invalid password attempt for user: {Email}", request.Email);
@@ -505,17 +540,16 @@ namespace Backend.Controllers
 
                 // Generate token
                 debugStep = "generate-token";
-                var convertedUser = user.ToUser(); // Convert MovieUser to User model
-                var token = GenerateJwtToken(convertedUser);
+                var userToken = GenerateJwtToken(movieUser);
 
                 debugStep = "create-response";
-                // Return LoginResponseDto or similar standard object
+                // Return LoginResponseDto
+                var userInfoDto = movieUser.ToUserInfoDto();
                 return Ok(new LoginResponseDto
                 {
-                    Token = token,
-                    User = convertedUser.ToUserInfoDto() // Use the UserInfoDto helper
+                    Token = userToken,
+                    User = userInfoDto
                 });
-                // */ // REMOVE COMMENT END
             }
             catch (Exception ex)
             {
@@ -528,67 +562,529 @@ namespace Backend.Controllers
             }
         }
 
-        // Debug endpoint - completely bypasses authentication
-        [HttpPost("debug-login")]
-        public IActionResult DebugLogin([FromBody] LoginPasswordDto request)
+        // Add missing test endpoints that are causing 405 errors
+        [HttpGet("test-endpoint")]
+        [AllowAnonymous]
+        public IActionResult TestEndpoint()
+        {
+            return Ok(new { message = "API is working correctly" });
+        }
+
+        [HttpGet("debug-db")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DebugDb()
         {
             try
             {
-                _logger.LogInformation("Debug login for email: {Email}", request.Email);
+                // Test database connection by retrieving user count
+                var userCount = await _context.Users.CountAsync();
+                return Ok(new { 
+                    message = "Database connection successful", 
+                    userCount = userCount
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { 
+                    message = "Database connection failed", 
+                    error = ex.Message
+                });
+            }
+        }
+
+        [HttpGet("debug-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DebugLogin([FromQuery] string email)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(email))
+                {
+                    return BadRequest(new { message = "Email parameter is required" });
+                }
+
+                var user = await _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.email == email);
+
+                if (user == null)
+                {
+                    return NotFound(new { message = $"User with email '{email}' not found" });
+                }
+
+                // For debugging purposes only, generate token without password check
+                var debugToken = GenerateJwtToken(user);
                 
-                // Generate fixed token
-                string token = "debug-token-for-testing-only";
+                return Ok(new LoginResponseDto
+                {
+                    Token = debugToken,
+                    User = user.ToUserInfoDto()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { 
+                    message = "Debug login failed", 
+                    error = ex.Message
+                });
+            }
+        }
+
+        // Add these endpoints for 2FA
+
+        [HttpPost("enable-2fa")]
+        [Authorize] // Require authentication
+        public async Task<IActionResult> Enable2FA([FromBody] Enable2FARequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.PhoneNumber))
+                {
+                    return BadRequest(new { message = "Phone number is required." });
+                }
+
+                // Get the current user ID from claims - try both formats
+                var userIdClaim = User.FindFirstValue("id");
                 
-                // Return hardcoded response
+                // If "id" claim is not found, try the standard NameIdentifier claim
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    _logger.LogInformation("Using ClaimTypes.NameIdentifier for user identification");
+                }
+                
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    _logger.LogWarning("JWT token missing valid user ID claims: {Claims}", 
+                        string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
+                    return BadRequest(new { message = "Valid user ID not found in token claims." });
+                }
+
+                _logger.LogInformation("Found user ID {UserId} in token claims", userId);
+
+                // Get user from database
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogWarning("User with ID {UserId} not found", userId);
+                    return NotFound(new { message = "User not found." });
+                }
+
+                // Create payload for Stytch to start MFA enrollment
+                var payload = new StringContent(
+                    JsonSerializer.Serialize(new
+                    {
+                        phone_number = request.PhoneNumber
+                    }),
+                    Encoding.UTF8,
+                    "application/json");
+
+                // Call Stytch API to send SMS
+                var response = await _httpClient.PostAsync("otps/sms/send", payload);
+                var content = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Stytch SMS OTP send failed: {StatusCode} - {Content}", 
+                        response.StatusCode, content);
+                    return StatusCode((int)response.StatusCode, new { message = "Failed to send verification code." });
+                }
+
+                // Parse Stytch response
+                var stytchResponse = JsonSerializer.Deserialize<StytchSmsResponse>(content, 
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (stytchResponse?.MethodId == null)
+                {
+                    return BadRequest(new { message = "Invalid response from authentication provider." });
+                }
+
+                // Store method ID temporarily (would be better stored in a secure session)
+                // In a production app, you would likely use a proper session store or encrypted cookie
+                Response.Cookies.Append("methodId", stytchResponse.MethodId, new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Strict,
+                    MaxAge = TimeSpan.FromMinutes(10)
+                });
+
+                // Return success
+                return Ok(new { 
+                    message = "Verification code sent successfully.",
+                    methodId = stytchResponse.MethodId
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during 2FA enrollment");
+                return StatusCode(500, new { message = "An error occurred during 2FA enrollment." });
+            }
+        }
+
+        [HttpPost("verify-2fa")]
+        [Authorize]
+        public async Task<IActionResult> Verify2FA([FromBody] Verify2FARequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.Code))
+                {
+                    return BadRequest(new { message = "Verification code is required." });
+                }
+
+                // Get method ID from cookie
+                if (!Request.Cookies.TryGetValue("methodId", out string methodId) || string.IsNullOrEmpty(methodId))
+                {
+                    return BadRequest(new { message = "Method ID not found. Please restart the 2FA setup process." });
+                }
+
+                // Get the current user ID from claims - try both formats
+                var userIdClaim = User.FindFirstValue("id");
+                
+                // If "id" claim is not found, try the standard NameIdentifier claim
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    _logger.LogInformation("Using ClaimTypes.NameIdentifier for user identification");
+                }
+                
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    _logger.LogWarning("JWT token missing valid user ID claims: {Claims}", 
+                        string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
+                    return BadRequest(new { message = "Valid user ID not found in token claims." });
+                }
+
+                _logger.LogInformation("Found user ID {UserId} in token claims", userId);
+
+                // Get user from database
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogWarning("User with ID {UserId} not found", userId);
+                    return NotFound(new { message = "User not found." });
+                }
+
+                // Create payload for Stytch to verify OTP
+                var payload = new StringContent(
+                    JsonSerializer.Serialize(new
+                    {
+                        method_id = methodId,
+                        code = request.Code
+                    }),
+                    Encoding.UTF8,
+                    "application/json");
+
+                // Call Stytch API to verify code
+                var response = await _httpClient.PostAsync("otps/authenticate", payload);
+                var content = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Stytch OTP authentication failed: {StatusCode} - {Content}", 
+                        response.StatusCode, content);
+                    return StatusCode((int)response.StatusCode, new 
+                    { 
+                        message = response.StatusCode == System.Net.HttpStatusCode.BadRequest 
+                            ? "Invalid verification code." 
+                            : "Failed to verify code." 
+                    });
+                }
+
+                // Parse Stytch response
+                var stytchResponse = JsonSerializer.Deserialize<StytchAuthenticateResponse>(content,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (stytchResponse?.AuthenticateSuccess != true)
+                {
+                    return BadRequest(new { message = "Verification failed." });
+                }
+
+                // Update user with 2FA info
+                user.HasMfaEnabled = true;
+                user.MfaPhoneNumber = request.PhoneNumber;
+                await _context.SaveChangesAsync();
+
+                // Clear the method ID cookie
+                Response.Cookies.Delete("methodId");
+
+                // Return success
+                return Ok(new { message = "Two-factor authentication enabled successfully." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verifying 2FA code");
+                return StatusCode(500, new { message = "An error occurred while verifying the code." });
+            }
+        }
+
+        // Add this endpoint to check 2FA status
+        [HttpGet("2fa-status")]
+        [Authorize]
+        public async Task<IActionResult> Get2FAStatus()
+        {
+            try
+            {
+                // Get the current user ID from claims - try both formats
+                var userIdClaim = User.FindFirstValue("id");
+                
+                // If "id" claim is not found, try the standard NameIdentifier claim
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    _logger.LogInformation("Using ClaimTypes.NameIdentifier for user identification");
+                }
+                
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    _logger.LogWarning("JWT token missing valid user ID claims: {Claims}", 
+                        string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
+                    return BadRequest(new { message = "Valid user ID not found in token claims." });
+                }
+
+                _logger.LogInformation("Found user ID {UserId} in token claims", userId);
+
+                // Get user from database
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogWarning("User with ID {UserId} not found", userId);
+                    return NotFound(new { message = "User not found." });
+                }
+
+                return Ok(new { 
+                    enabled = user.HasMfaEnabled.GetValueOrDefault(false),
+                    phoneNumber = user.MfaPhoneNumber ?? string.Empty
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting 2FA status");
+                return StatusCode(500, new { message = "An error occurred while getting 2FA status." });
+            }
+        }
+
+        // Add this endpoint to disable 2FA
+        [HttpPost("disable-2fa")]
+        [Authorize]
+        public async Task<IActionResult> Disable2FA()
+        {
+            try
+            {
+                // Get the current user ID from claims - try both formats
+                var userIdClaim = User.FindFirstValue("id");
+                
+                // If "id" claim is not found, try the standard NameIdentifier claim
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    _logger.LogInformation("Using ClaimTypes.NameIdentifier for user identification");
+                }
+                
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    _logger.LogWarning("JWT token missing valid user ID claims: {Claims}", 
+                        string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
+                    return BadRequest(new { message = "Valid user ID not found in token claims." });
+                }
+
+                _logger.LogInformation("Found user ID {UserId} in token claims", userId);
+
+                // Get user from database
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    return NotFound(new { message = "User not found." });
+                }
+
+                // Disable 2FA
+                user.HasMfaEnabled = false;
+                user.MfaPhoneNumber = null;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Two-factor authentication disabled successfully." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disabling 2FA");
+                return StatusCode(500, new { message = "An error occurred while disabling 2FA." });
+            }
+        }
+
+        // Add this endpoint to debug JWT token claims
+        [HttpGet("debug-jwt")]
+        [Authorize]
+        public IActionResult DebugJwtToken()
+        {
+            try
+            {
+                // Get all claims from the current token
+                var claims = User.Claims.Select(c => new { Type = c.Type, Value = c.Value }).ToList();
+                
+                // Specifically look for the "id" claim
+                var userIdClaim = User.FindFirstValue("id");
+                var nameIdentifierClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                
                 return Ok(new
                 {
-                    token = token,
-                    user = new
-                    {
-                        id = 123,
-                        email = request.Email,
-                        name = "Debug User",
-                        isAdmin = true
-                    }
+                    message = "JWT token debug information",
+                    hasIdClaim = !string.IsNullOrEmpty(userIdClaim),
+                    idClaimValue = userIdClaim,
+                    nameIdentifierValue = nameIdentifierClaim,
+                    isAuthenticated = User.Identity?.IsAuthenticated ?? false,
+                    allClaims = claims
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in debug login: {Message}", ex.Message);
-                return StatusCode(500, new { message = ex.Message });
+                _logger.LogError(ex, "Error during JWT token debugging");
+                return StatusCode(500, new { message = "An error occurred during JWT debugging." });
             }
         }
 
-        // Ultra simple test endpoint - does nothing but return a fixed response
-        [HttpPost("test-endpoint")]
-        public IActionResult TestEndpoint()
+        // Mock 2FA functionality for testing/demo purposes
+        [HttpPost]
+        [Route("mock-enable-2fa")]
+        [Authorize]
+        public async Task<IActionResult> MockEnable2FA([FromBody] Enable2FARequest request)
         {
-            return Ok(new { message = "Test endpoint works!" });
-        }
-
-        // Test database connection but return hardcoded response
-        [HttpPost("debug-db")]
-        public async Task<IActionResult> DebugDatabase([FromBody] LoginPasswordDto request)
-        {
-            try 
+            try
             {
-                _logger.LogInformation("Testing DB access for: {Email}", request.Email);
+                if (request == null || string.IsNullOrWhiteSpace(request.PhoneNumber))
+                {
+                    return BadRequest(new { message = "Phone number is required." });
+                }
+
+                // Get the current user ID using the same approach as the real endpoint
+                var userIdClaim = User.FindFirstValue("id");
                 
-                // Just count the users to verify database connectivity
-                int userCount = await _context.Users.CountAsync();
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    _logger.LogInformation("Using ClaimTypes.NameIdentifier for user identification");
+                }
                 
-                // Return completely hardcoded response
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    _logger.LogWarning("JWT token missing valid user ID claims: {Claims}", 
+                        string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
+                    return BadRequest(new { message = "Valid user ID not found in token claims." });
+                }
+
+                // Get user from database
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogWarning("User with ID {UserId} not found", userId);
+                    return NotFound(new { message = "User not found." });
+                }
+
+                // For mock purposes, we'll store a simulated verification code in a cookie
+                // In a real system, this would be sent via SMS
+                // Always use 123456 as the mock verification code
+                const string mockVerificationCode = "123456";
+                
+                // Generate a fake method ID (to mimic Stytch's response)
+                string methodId = Guid.NewGuid().ToString();
+                
+                // Store the method ID and phone number in cookies
+                Response.Cookies.Append("methodId", methodId, new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Strict,
+                    MaxAge = TimeSpan.FromMinutes(10)
+                });
+                
+                // Log for demo purposes
+                _logger.LogInformation("MOCK 2FA: Verification code for {PhoneNumber} is {Code}", 
+                    request.PhoneNumber, mockVerificationCode);
+
+                // Return a mock success response
                 return Ok(new { 
-                    message = $"Database connection successful. User count: {userCount}",
-                    token = "test-token",
-                    user = new { id = 1, email = "test@example.com", name = "Test User", isAdmin = false }
+                    message = "Verification code sent successfully (mock). Use code: 123456",
+                    methodId = methodId,
+                    mockCode = mockVerificationCode // Only in mock version - would not exist in real version
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Database connection test failed: {Message}", ex.Message);
-                return StatusCode(500, new { message = "Database error", error = ex.Message });
+                _logger.LogError(ex, "Error during mock 2FA enrollment");
+                return StatusCode(500, new { message = "An error occurred during 2FA enrollment." });
             }
+        }
+
+        // Mock version of 2FA verification
+        [HttpPost]
+        [Route("mock-verify-2fa")]
+        [Authorize]
+        public async Task<IActionResult> MockVerify2FA([FromBody] Verify2FARequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.Code))
+                {
+                    return BadRequest(new { message = "Verification code is required." });
+                }
+
+                // Check if the code is the mock code (123456)
+                if (request.Code != "123456")
+                {
+                    return BadRequest(new { message = "Invalid verification code." });
+                }
+
+                // Get the method ID from cookie
+                if (!Request.Cookies.TryGetValue("methodId", out string methodId) || string.IsNullOrEmpty(methodId))
+                {
+                    return BadRequest(new { message = "Method ID not found. Please restart the 2FA setup process." });
+                }
+
+                // Get the current user ID
+                var userIdClaim = User.FindFirstValue("id");
+                
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                }
+                
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    return BadRequest(new { message = "Valid user ID not found in token claims." });
+                }
+
+                // Get user from database
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    return NotFound(new { message = "User not found." });
+                }
+
+                // Update user with 2FA info
+                user.HasMfaEnabled = true;
+                user.MfaPhoneNumber = request.PhoneNumber;
+                await _context.SaveChangesAsync();
+
+                // Clear the method ID cookie
+                Response.Cookies.Delete("methodId");
+
+                // Return success
+                return Ok(new { message = "Two-factor authentication enabled successfully (mock)." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verifying mock 2FA code");
+                return StatusCode(500, new { message = "An error occurred while verifying the code." });
+            }
+        }
+
+        // Simple test endpoint for 2FA functionality
+        [HttpGet]
+        [Route("test-2fa")]
+        [AllowAnonymous]
+        public IActionResult Test2FA()
+        {
+            return Ok(new { message = "2FA test endpoint is working!" });
         }
     }
 }

@@ -107,6 +107,32 @@ else
     app.UseHsts();
 }
 
+// Add Content-Security-Policy middleware
+app.Use(async (context, next) =>
+{
+    // Define CSP policies
+    context.Response.Headers.Add("Content-Security-Policy", 
+        "default-src 'self';" +
+        "img-src 'self' https://postersintex.blob.core.windows.net data:;" +
+        "style-src 'self' https://fonts.googleapis.com 'unsafe-inline';" +
+        "font-src 'self' https://fonts.gstatic.com;" +
+        "script-src 'self' 'unsafe-inline';" + 
+        "connect-src 'self' https://localhost:* http://localhost:*;" +
+        "frame-ancestors 'none';" +
+        "form-action 'self';" +
+        "base-uri 'self';" +
+        "object-src 'none'");
+
+    // Add other security headers
+    context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Add("X-Frame-Options", "DENY");
+    context.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
+    context.Response.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
+    context.Response.Headers.Add("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+    await next();
+});
+
 // Use CORS before any other middleware
 app.UseCors("AllowFrontend");
 

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Pencil } from 'lucide-react';
+import { Pencil, Shield, ToggleLeft, ToggleRight } from 'lucide-react';
+import TwoFactorAuth from '../components/TwoFactorAuth';
 
 // Sample user extended data - in a real app this would come from the backend
 const sampleUserExtendedData = {
@@ -14,8 +15,10 @@ const sampleUserExtendedData = {
 };
 
 const ProfilePage: React.FC = () => {
-  const { user, reviewedMovies, favorites, watchlist, isAuthenticated } = useAuth();
+  const { user, favorites, watchlist } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [showTwoFactorAuth, setShowTwoFactorAuth] = useState(false);
   const [editedName, setEditedName] = useState(user?.name || '');
   const [editedEmail, setEditedEmail] = useState(user?.email || '');
   const [editedPhone, setEditedPhone] = useState(sampleUserExtendedData.phone);
@@ -25,7 +28,15 @@ const ProfilePage: React.FC = () => {
   const [editedState, setEditedState] = useState(sampleUserExtendedData.state);
   const [editedZipCode, setEditedZipCode] = useState(sampleUserExtendedData.zipCode);
   
-  if (!isAuthenticated) {
+  // Check if 2FA is enabled from localStorage
+  useEffect(() => {
+    const storedStatus = localStorage.getItem('mock2FAStatus');
+    if (storedStatus === 'enabled') {
+      setIs2FAEnabled(true);
+    }
+  }, []);
+
+  if (!user) {
     return <Navigate to="/" />;
   }
   
@@ -45,6 +56,25 @@ const ProfilePage: React.FC = () => {
       });
     }
     setIsEditing(!isEditing);
+  };
+
+  const handle2FAToggle = () => {
+    if (is2FAEnabled) {
+      // If 2FA is enabled, prompt to confirm disabling
+      if (window.confirm('Are you sure you want to disable two-factor authentication? This will make your account less secure.')) {
+        localStorage.removeItem('mock2FAStatus');
+        localStorage.removeItem('mock2FAPhone');
+        setIs2FAEnabled(false);
+      }
+    } else {
+      // If 2FA is not enabled, show the setup form
+      setShowTwoFactorAuth(true);
+    }
+  };
+
+  const handleTwoFactorAuthComplete = () => {
+    setIs2FAEnabled(true);
+    setShowTwoFactorAuth(false);
   };
   
   return (
@@ -92,23 +122,6 @@ const ProfilePage: React.FC = () => {
             >
               {isEditing ? 'Save Changes' : <Pencil size={18} />}
             </button>
-          </div>
-          
-          <div className="profile-stats">
-            <div className="stat-card">
-              <span className="stat-number">{reviewedMovies.length}</span>
-              <span className="stat-label">Reviews</span>
-            </div>
-            
-            <div className="stat-card">
-              <span className="stat-number">{favorites.length}</span>
-              <span className="stat-label">Favorites</span>
-            </div>
-            
-            <div className="stat-card">
-              <span className="stat-number">{watchlist.length}</span>
-              <span className="stat-label">Watchlist</span>
-            </div>
           </div>
           
           <div className="profile-section">
@@ -223,34 +236,52 @@ const ProfilePage: React.FC = () => {
             )}
           </div>
           
+          {/* Security Section for 2FA */}
           <div className="profile-section">
-            <h3>Recent Activity</h3>
-            {reviewedMovies.length > 0 ? (
-              <div className="recent-reviews">
-                {reviewedMovies.slice(0, 3).map((movie) => (
-                  <div key={movie.id} className="recent-review-item">
-                    <Link to={`/movies/${movie.id}`} className="review-movie-poster">
-                      <img src={movie.imageUrl} alt={movie.title} />
-                    </Link>
-                    <div className="review-content">
-                      <h4>{movie.title} ({movie.year})</h4>
-                      <div className="review-rating">
-                        {[...Array(5)].map((_, i) => (
-                          <span key={i} className={`star ${i < movie.rating ? 'filled' : ''}`}>★</span>
-                        ))}
-                      </div>
-                      <p className="review-excerpt">{movie.review.substring(0, 120)}...</p>
-                    </div>
-                  </div>
-                ))}
-                
-                <Link to="/my-reviews" className="btn-secondary view-all-btn">
-                  View All Reviews
+            <div className="section-header">
+              <h3>Security Settings</h3>
+              <div className="toggle-container">
+                <span className="toggle-label">Two-Factor Authentication</span>
+                <button className="toggle-button" onClick={handle2FAToggle}>
+                  {is2FAEnabled ? (
+                    <ToggleRight size={36} className="toggle-icon toggle-on" />
+                  ) : (
+                    <ToggleLeft size={36} className="toggle-icon toggle-off" />
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {showTwoFactorAuth && !is2FAEnabled && (
+              <div className="security-settings">
+                <div className="security-setting-item">
+                  <p>Add an extra layer of security to your account with two-factor authentication.</p>
+                  <TwoFactorAuth onComplete={handleTwoFactorAuthComplete} />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="profile-section">
+            <h3>Account Stats</h3>
+            <div className="profile-stats">
+              <div className="stat-card">
+                <Link to="/my-reviews" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <span className="stat-number">0</span>
+                  <span className="stat-label">Reviews</span>
                 </Link>
               </div>
-            ) : (
-              <p className="no-reviews">You haven't written any reviews yet.</p>
-            )}
+              
+              <div className="stat-card">
+                <span className="stat-number">{favorites.length}</span>
+                <span className="stat-label">Favorites</span>
+              </div>
+              
+              <div className="stat-card">
+                <span className="stat-number">{watchlist.length}</span>
+                <span className="stat-label">Watchlist</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

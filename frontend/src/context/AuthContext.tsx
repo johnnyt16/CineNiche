@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { usersApi, MovieUser, favoritesApi, watchlistApi, moviesApi } from '../services/api';
+import { usersApi, MovieUser, favoritesApi, watchlistApi, moviesApi, MovieRating } from '../services/api';
 
 // Define user type
 export interface User {
@@ -45,6 +45,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   addReview: (review: ReviewedMovie) => void;
+  loadUserReviews: (userId: number) => Promise<void>;
   toggleFavorite: (movie: MovieItem) => Promise<void>;
   toggleWatchlist: (movie: MovieItem) => Promise<void>;
   isInFavorites: (movieId: string) => boolean;
@@ -62,6 +63,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => false,
   logout: () => {},
   addReview: () => {},
+  loadUserReviews: async () => {},
   toggleFavorite: async () => {},
   toggleWatchlist: async () => {},
   isInFavorites: () => false,
@@ -71,24 +73,7 @@ const AuthContext = createContext<AuthContextType>({
 
 // Sample reviewed movies
 const sampleReviewedMovies: ReviewedMovie[] = [
-  { 
-    id: '1', 
-    title: 'The Seventh Seal', 
-    imageUrl: 'https://via.placeholder.com/300x450?text=Movie+1', 
-    genre: 'Drama', 
-    year: 1957,
-    rating: 5,
-    review: 'A timeless masterpiece that explores the meaning of life and death through a medieval knight\'s chess game with Death itself.'
-  },
-  {
-    id: '4', 
-    title: 'Stalker', 
-    imageUrl: 'https://via.placeholder.com/300x450?text=Movie+4', 
-    genre: 'Sci-Fi', 
-    year: 1979,
-    rating: 4,
-    review: 'A hypnotic journey through a mysterious forbidden zone. Tarkovsky\'s masterful direction creates an unforgettable atmosphere of dread and wonder.'
-  }
+  // We'll get rid of these sample reviews
 ];
 
 // Helper to convert API data to MovieItem
@@ -120,6 +105,79 @@ export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [watchlist, setWatchlist] = useState<MovieItem[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Helper to convert API data to ReviewedMovie
+  const convertToReviewedMovie = async (rating: MovieRating): Promise<ReviewedMovie | null> => {
+    try {
+      const movieData = await moviesApi.getMovieById(rating.show_id);
+      
+      // If movie data is found, use it
+      if (movieData) {
+        const posterUrl = await moviesApi.getMoviePosterUrl(movieData.title || '');
+        return {
+          id: movieData.show_id,
+          title: movieData.title || 'Untitled',
+          imageUrl: posterUrl || '/images/placeholder-movie.jpg',
+          genre: movieData.categories?.[0] || 'Drama', // Use first category as genre
+          year: movieData.release_year || 0,
+          rating: rating.rating,
+          review: rating.review || movieData.description || 'No review text available.'
+        };
+      } else {
+        // If movie data is not found, create a minimal placeholder
+        return {
+          id: rating.show_id,
+          title: `Movie ${rating.show_id}`,
+          imageUrl: '/images/placeholder-movie.jpg',
+          genre: 'Unknown',
+          year: 0,
+          rating: rating.rating,
+          review: rating.review || 'This is your rating for this movie.'
+        };
+      }
+    } catch (error) {
+      console.error(`Error converting rating ${rating.show_id} to ReviewedMovie:`, error);
+      // Return a minimal placeholder on error
+      return {
+        id: rating.show_id,
+        title: `Movie ${rating.show_id}`,
+        imageUrl: '/images/placeholder-movie.jpg',
+        genre: 'Unknown',
+        year: 0,
+        rating: rating.rating,
+        review: rating.review || 'This is your rating for this movie.'
+      };
+    }
+  };
+
+  // Load user's reviews from the API
+  const loadUserReviews = async (userId: number) => {
+    try {
+      const userRatings = await usersApi.getUserReviews(userId);
+      if (userRatings.length > 0) {
+        const reviewItems: ReviewedMovie[] = [];
+        
+        // Convert each rating to a ReviewedMovie
+        for (const rating of userRatings) {
+          const reviewItem = await convertToReviewedMovie(rating);
+          if (reviewItem) {
+            reviewItems.push(reviewItem);
+          }
+        }
+        
+        setReviewedMovies(reviewItems);
+        localStorage.setItem('userReviews', JSON.stringify(reviewItems));
+      } else {
+        // User has no reviews
+        setReviewedMovies([]);
+        localStorage.setItem('userReviews', JSON.stringify([]));
+      }
+    } catch (error) {
+      console.error('Error loading user reviews:', error);
+      setReviewedMovies([]);
+      localStorage.setItem('userReviews', JSON.stringify([]));
+    }
+  };
+
   // Check for saved auth state on component mount
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -130,14 +188,22 @@ export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
         setIsAuthenticated(true);
         setIsAdmin(parsedUser.isAdmin || false);
         
-        // Load user's favorites and watchlist from the database
+        // Load saved reviews from localStorage
+        const savedReviews = localStorage.getItem('userReviews');
+        if (savedReviews) {
+          setReviewedMovies(JSON.parse(savedReviews));
+        }
+        
+        // Load user's favorites, watchlist, and reviews from the database
         if (parsedUser.id) {
           loadUserFavorites(parsedUser.id);
           loadUserWatchlist(parsedUser.id);
+          loadUserReviews(parsedUser.id);
         }
       } catch (e) {
         console.error('Error parsing saved user', e);
         localStorage.removeItem('user');
+        localStorage.removeItem('userReviews');
       }
     }
   }, []);
@@ -219,12 +285,10 @@ export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
         // Save user in localStorage for persistence
         localStorage.setItem('user', JSON.stringify(userModel));
         
-        // Load the user's favorites and watchlist
+        // Load the user's favorites, watchlist, and reviews from the database
         await loadUserFavorites(userModel.id);
         await loadUserWatchlist(userModel.id);
-        
-        // For demo purposes, use sample data for reviews
-        setReviewedMovies(sampleReviewedMovies);
+        await loadUserReviews(userModel.id);
         
         console.log('User logged in:', email);
         return true;
@@ -248,6 +312,8 @@ export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     
     // Clear saved auth state
     localStorage.removeItem('user');
+    // We don't remove reviews on logout so they persist
+    // localStorage.removeItem('userReviews');
     
     console.log('User logged out');
   };
@@ -257,15 +323,21 @@ export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     // Check if movie is already reviewed
     const existingIndex = reviewedMovies.findIndex(m => m.id === review.id);
     
+    let updatedReviews;
     if (existingIndex !== -1) {
       // Update existing review
-      const updatedReviews = [...reviewedMovies];
+      updatedReviews = [...reviewedMovies];
       updatedReviews[existingIndex] = review;
-      setReviewedMovies(updatedReviews);
     } else {
       // Add new review
-      setReviewedMovies([...reviewedMovies, review]);
+      updatedReviews = [...reviewedMovies, review];
     }
+    
+    // Update state
+    setReviewedMovies(updatedReviews);
+    
+    // Save to localStorage
+    localStorage.setItem('userReviews', JSON.stringify(updatedReviews));
   };
 
   // Toggle favorite function
@@ -336,6 +408,7 @@ export const AuthProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       login, 
       logout, 
       addReview,
+      loadUserReviews,
       toggleFavorite,
       toggleWatchlist,
       isInFavorites,

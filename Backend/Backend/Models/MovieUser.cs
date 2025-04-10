@@ -20,5 +20,7 @@ public class MovieUser
     public string? PasswordHash { get; set; } // Match database column name - Nullable
     public string? PasswordSalt { get; set; } // Match database column name - Nullable
     public int isAdmin { get; set; } // 0 for regular users, 1 for admins
+    public bool? HasMfaEnabled { get; set; }
+    public string? MfaPhoneNumber { get; set; }
 }
 

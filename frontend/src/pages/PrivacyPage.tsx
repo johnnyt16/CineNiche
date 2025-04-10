@@ -1,6 +1,9 @@
 import React from 'react';
+import { useCookieConsent } from '../context/CookieConsentContext';
 
 const PrivacyPage: React.FC = () => {
+  const { resetConsent } = useCookieConsent();
+
   return (
     <div className="privacy-page">
       <h1>Privacy Policy</h1>
@@ -8,6 +11,41 @@ const PrivacyPage: React.FC = () => {
       <section className="privacy-section">
         <h2>Introduction</h2>
         <p>At CineNiche, we respect your privacy and are committed to protecting your personal data. This privacy policy will inform you about how we look after your personal data when you visit our website and tell you about your privacy rights and how the law protects you.</p>
+      </section>
+      
+      <section className="privacy-section">
+        <h2>Cookies Policy</h2>
+        <p>Our website uses cookies to distinguish you from other users of our website. This helps us to provide you with a good experience when you browse our website and also allows us to improve our site.</p>
+        
+        <h3>What are cookies?</h3>
+        <p>Cookies are small text files that are placed on your computer or mobile device when you browse websites. They are widely used in order to make websites work, or work more efficiently, as well as to provide information to the owners of the site.</p>
+        
+        <h3>Types of cookies we use</h3>
+        <p>We use the following categories of cookies on our website:</p>
+        
+        <ul>
+          <li><strong>Necessary Cookies:</strong> These cookies are essential for the website to function properly. They enable core functionality such as security, network management, and account access. You cannot disable these cookies in our system.</li>
+          
+          <li><strong>Functional Cookies:</strong> These cookies enable us to provide enhanced functionality and personalization. They may be set by us or by third-party providers whose services we have added to our pages. If you disable these cookies, some or all of these services may not function properly.</li>
+          
+          <li><strong>Analytics Cookies:</strong> These cookies allow us to count visits and traffic sources so we can measure and improve the performance of our site. They help us know which pages are the most and least popular and see how visitors move around the site. All information these cookies collect is aggregated and anonymous.</li>
+          
+          <li><strong>Marketing Cookies:</strong> These cookies may be set through our site by our advertising partners. They may be used by those companies to build a profile of your interests and show you relevant advertisements on other sites. They do not directly store personal information but are based on uniquely identifying your browser and internet device.</li>
+        </ul>
+        
+        <h3>How to control cookies</h3>
+        <p>You can set or amend your web browser controls to accept or refuse cookies. If you choose to reject cookies, you may still use our website though your access to some functionality and areas of our website may be restricted.</p>
+        
+        <p>You can also reset your cookie preferences for this website by clicking this button:</p>
+        <button 
+          className="btn-secondary"
+          onClick={() => {
+            resetConsent();
+            window.location.reload();
+          }}
+        >
+          Reset Cookie Preferences
+        </button>
       </section>
       
       <section className="privacy-section">

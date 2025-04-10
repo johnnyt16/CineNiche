@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -10,6 +11,7 @@ const RegisterPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth(); // Get login function from auth context
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,9 +56,21 @@ const RegisterPage: React.FC = () => {
         console.log('Registration successful, received data:', result);
 
         if (result.user && result.token) {
-          navigate('/register-profile', {
-            state: { user: result.user, token: result.token }
-          });
+          // Store the auth token
+          localStorage.setItem('authToken', result.token);
+          
+          // Use the login function to set the user's authenticated state
+          const success = await login(email, password);
+          
+          if (success) {
+            // Redirect to home page after successful login
+            navigate('/');
+          } else {
+            // If automatic login fails, redirect to profile setup with the user data
+            navigate('/register-profile', {
+              state: { user: result.user, token: result.token }
+            });
+          }
         } else {
           console.error('Registration response missing user or token:', result);
           setError('Registration succeeded but failed to get authentication details. Please try logging in.');

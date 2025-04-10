@@ -8,6 +8,26 @@ const api = axios.create({
   },
 });
 
+// Add a request interceptor to include the auth token in all requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      // Make sure we're using the correct format: "Bearer <token>"
+      // Also ensure there's only one space after "Bearer"
+      config.headers.Authorization = `Bearer ${token.trim()}`;
+    }
+    
+    // Add debugging for token issues
+    if (config.url?.includes('2fa-status')) {
+      console.log('Auth header for 2FA request:', config.headers.Authorization);
+    }
+    
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Movie interfaces matching the backend DTOs
 export interface MovieTitle {
   show_id: string;
@@ -30,6 +50,7 @@ export interface MovieRating {
   user_id: number;
   show_id: string;
   rating: number;
+  review?: string;
 }
 
 export interface MovieUser {
@@ -88,6 +109,30 @@ export const moviesApi = {
     } catch (error) {
       console.error('Error fetching movies:', error);
       return [];
+    }
+  },
+  
+  // Create a new movie (for admin use)
+  createMovie: async (movieData: {
+    type: string;
+    title: string;
+    director?: string;
+    cast?: string;
+    country?: string;
+    release_year?: number;
+    rating?: string;
+    duration?: string;
+    description?: string;
+    genres?: string[];
+  }): Promise<MovieTitle | null> => {
+    try {
+      console.log('Creating new movie:', movieData);
+      const response = await api.post('/movies', movieData);
+      console.log('Movie created successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating movie:', error);
+      return null;
     }
   },
   
@@ -663,11 +708,89 @@ export const usersApi = {
   // Get user reviews
   getUserReviews: async (userId: number): Promise<MovieRating[]> => {
     try {
-      const response = await api.get(`/movies/ratings/user/${userId}`);
-      return response.data;
+      // Read from localStorage instead of making an API call
+      const savedRatingsKey = `userRatings_${userId}`;
+      const savedRatingsJson = localStorage.getItem(savedRatingsKey);
+      
+      if (savedRatingsJson) {
+        return JSON.parse(savedRatingsJson);
+      }
+      
+      return [];
     } catch (error) {
       console.error(`Error fetching reviews for user with ID ${userId}:`, error);
       return [];
+    }
+  },
+
+  // Add or update a movie rating
+  addOrUpdateRating: async (userId: number, movieId: string, rating: number, review?: string): Promise<MovieRating | null> => {
+    try {
+      // Create the rating object
+      const ratingData: MovieRating = {
+        user_id: userId,
+        show_id: movieId,
+        rating: rating,
+        review: review || ''
+      };
+
+      // Since the server endpoint doesn't exist, we'll store in localStorage
+      const savedRatingsKey = `userRatings_${userId}`;
+      let savedRatings: MovieRating[] = [];
+      
+      // Load existing ratings from localStorage
+      const savedRatingsJson = localStorage.getItem(savedRatingsKey);
+      if (savedRatingsJson) {
+        savedRatings = JSON.parse(savedRatingsJson);
+      }
+      
+      // Check if this movie is already rated by the user
+      const existingIndex = savedRatings.findIndex(r => r.show_id === movieId);
+      
+      if (existingIndex !== -1) {
+        // Update existing rating
+        savedRatings[existingIndex].rating = rating;
+        savedRatings[existingIndex].review = review || savedRatings[existingIndex].review || '';
+      } else {
+        // Add new rating
+        savedRatings.push(ratingData);
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem(savedRatingsKey, JSON.stringify(savedRatings));
+      
+      console.log(`Rating saved to localStorage: User ${userId}, Movie ${movieId}, Rating ${rating}, Review: ${review?.substring(0, 30)}...`);
+      return ratingData;
+    } catch (error) {
+      console.error(`Error adding/updating rating for movie ${movieId} by user ${userId}:`, error);
+      return null;
+    }
+  },
+
+  // Delete a movie rating
+  deleteRating: async (userId: number, movieId: string): Promise<boolean> => {
+    try {
+      // Since the server endpoint doesn't exist, we'll update localStorage
+      const savedRatingsKey = `userRatings_${userId}`;
+      let savedRatings: MovieRating[] = [];
+      
+      // Load existing ratings from localStorage
+      const savedRatingsJson = localStorage.getItem(savedRatingsKey);
+      if (savedRatingsJson) {
+        savedRatings = JSON.parse(savedRatingsJson);
+        
+        // Filter out the rating to delete
+        savedRatings = savedRatings.filter(r => r.show_id !== movieId);
+        
+        // Save back to localStorage
+        localStorage.setItem(savedRatingsKey, JSON.stringify(savedRatings));
+      }
+      
+      console.log(`Rating removed from localStorage: User ${userId}, Movie ${movieId}`);
+      return true;
+    } catch (error) {
+      console.error(`Error deleting rating for movie ${movieId} by user ${userId}:`, error);
+      return false;
     }
   },
 };
