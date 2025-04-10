@@ -91,9 +91,9 @@ export const moviesApi = {
     }
   },
   
-  getMovieRecommendations: async (showId: string, userId?: number): Promise<MovieTitle[]> => {
+  getMovieRecommendations: async (showId: string, userId?: number, count: number = 10): Promise<MovieTitle[]> => {
     try {
-        const params = userId ? `?userId=${userId}` : '';
+        const params = userId ? `?userId=${userId}&count=10` : '?count=10'; // Add count=10 parameter
         const response = await api.get(`/movies/titles/${showId}/recommendations${params}`);
         return response.data;
     } catch (error) {

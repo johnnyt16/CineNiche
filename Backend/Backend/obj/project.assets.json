@@ -6890,19 +6890,19 @@
     ]
   },
   "packageFolders": {
-    "/Users/johnmcconkie/.nuget/packages/": {}
+    "/Users/andieclegg/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/johnmcconkie/Desktop/CineNiche/Backend/Backend/Backend.csproj",
+      "projectUniqueName": "/Users/andieclegg/CineNiche-Final/CineNiche/Backend/Backend/Backend.csproj",
       "projectName": "Backend",
-      "projectPath": "/Users/johnmcconkie/Desktop/CineNiche/Backend/Backend/Backend.csproj",
-      "packagesPath": "/Users/johnmcconkie/.nuget/packages/",
-      "outputPath": "/Users/johnmcconkie/Desktop/CineNiche/Backend/Backend/obj/",
+      "projectPath": "/Users/andieclegg/CineNiche-Final/CineNiche/Backend/Backend/Backend.csproj",
+      "packagesPath": "/Users/andieclegg/.nuget/packages/",
+      "outputPath": "/Users/andieclegg/CineNiche-Final/CineNiche/Backend/Backend/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/johnmcconkie/.nuget/NuGet/NuGet.Config"
+        "/Users/andieclegg/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
@@ -6999,7 +6999,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.407/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.406/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

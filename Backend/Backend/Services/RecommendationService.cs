@@ -17,7 +17,7 @@ namespace CineNiche.API.Services
         }
 
         // Content-based filtering
-        public async Task<List<MovieTitle>> GetContentBasedRecommendations(string showId, int count = 5)
+        public async Task<List<MovieTitle>> GetContentBasedRecommendations(string showId, int count = 10)
         {
             var targetMovie = await _context.Movies.FindAsync(showId);
             if (targetMovie == null) return new List<MovieTitle>();
@@ -54,7 +54,7 @@ namespace CineNiche.API.Services
         }
 
         // Hybrid recommendation combining content-based and user behavior
-        public async Task<List<MovieTitle>> GetHybridRecommendations(string showId, int? userId = null, int count = 5)
+        public async Task<List<MovieTitle>> GetHybridRecommendations(string showId, int? userId = null, int count = 10)
         {
             var contentBased = await GetContentBasedRecommendations(showId, count * 2);
 

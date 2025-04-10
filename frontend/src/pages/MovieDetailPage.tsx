@@ -609,7 +609,8 @@ useEffect(() => {
       try {
           const recommendations = await moviesApi.getMovieRecommendations(
               movie.id, 
-              user?.id
+              user?.id,
+              10 // explicitly request 10 recommendations
           );
           
           const recommendedMovies = await Promise.all(
@@ -1018,7 +1019,7 @@ useEffect(() => {
             ref={similarMoviesRef}
           >
             <div className="film-scroll-track">
-              {similarMovies.slice(0, 5).map((movie) => (
+              {similarMovies.slice(0, 10).map((movie) => (
                 <Link to={`/movies/${movie.id}`} key={movie.id} className="film-item">
                   <img src={movie.imageUrl} alt={movie.title} />
                   <p>{movie.title}</p>
