@@ -34,279 +34,127 @@ const convertToCarouselItem = (movie: MovieTitle) => {
 };
 
 const HomePage: React.FC = () => {
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const recommendedCarouselRef = useRef<HTMLDivElement>(null);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isRecommendedPaused, setIsRecommendedPaused] = useState(false);
-  const [startX, setStartX] = useState<number | null>(null);
-  const [startXRecommended, setStartXRecommended] = useState<number | null>(null);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [scrollLeftRecommended, setScrollLeftRecommended] = useState(0);
-  const [movieImages, setMovieImages] = useState<{id: string|number, src: string, title: string}[]>([]);
-  const [recommendedMovies, setRecommendedMovies] = useState<{id: string|number, src: string, title: string}[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Get auth context
-  const { isAuthenticated, user } = useAuth();
-  
-  // Fetch movies from API
-  useEffect(() => {
-    const fetchMovies = async () => {
-      try {
-        setLoading(true);
-        // Use the new paginated API instead of the deprecated getAllMovies
-        const response = await moviesApi.getMoviesPaged(1, 6);
-        
-        if (response.movies && response.movies.length > 0) {
-          // Convert to carousel item format
-          const recentMovies = response.movies
-            .map(convertToCarouselItem)
-            .slice(0, 6); // Take top 6 movies
-          
-          setMovieImages(recentMovies);
-          
-          // For recommended movies, get another page or use a different slice
-          try {
-            // Try to get the second page for recommendations
-            const recResponse = await moviesApi.getMoviesPaged(2, 6);
-            if (recResponse.movies && recResponse.movies.length > 0) {
-              const recommendedItems = recResponse.movies.map(convertToCarouselItem);
-              setRecommendedMovies(recommendedItems);
-            } else {
-              // Fallback to using more from the first page
-              const recommendedItems = response.movies
-                .slice(Math.min(6, response.movies.length))
-                .map(convertToCarouselItem);
-              
-              setRecommendedMovies(recommendedItems.length > 0 ? 
-                recommendedItems : fallbackRecommendedMovies);
-            }
-          } catch (err) {
-            console.error('Error fetching recommended movies:', err);
-            setRecommendedMovies(fallbackRecommendedMovies);
-          }
-        } else {
-          // Use fallback data
-          setMovieImages(fallbackMovieImages);
-          setRecommendedMovies(fallbackRecommendedMovies);
-        }
-      } catch (err) {
-        console.error('Error fetching movies:', err);
-        // Use fallback data
-        setMovieImages(fallbackMovieImages);
-        setRecommendedMovies(fallbackRecommendedMovies);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchMovies();
-  }, []);
+    const { isAuthenticated, user } = useAuth();
+    const carouselRef = useRef<HTMLDivElement>(null);
+    const recommendedCarouselRef = useRef<HTMLDivElement>(null);
+    const [movieImages, setMovieImages] = useState<Movie[]>([]);
+    const [recommendedMovies, setRecommendedMovies] = useState<Movie[]>([]);
+    const [isPaused, setIsPaused] = useState(false);
+    const [isRecommendedPaused, setIsRecommendedPaused] = useState(false);
 
-  // Create extended arrays for continuous scrolling
-  const extendedMovieImages = [...movieImages, ...movieImages, ...movieImages];
-  const extendedRecommendedMovies = [...recommendedMovies, ...recommendedMovies, ...recommendedMovies];
-  
-  // Auto-scroll effect for recent movies
-  useEffect(() => {
-    let animationId: number;
-    let lastTimestamp = 0;
-    
-    const autoScroll = (timestamp: number) => {
-      if (!isPaused && carouselRef.current) {
-        // Calculate elapsed time since last frame
-        const elapsed = timestamp - lastTimestamp;
-        
-        if (elapsed > 16) { // roughly 60fps
-          // Slow scroll speed (0.5 pixels per frame)
-          carouselRef.current.scrollLeft += 0.5;
-          lastTimestamp = timestamp;
-          
-          // Reset scroll position when reaching the end for infinite scroll effect
-          if (carouselRef.current.scrollLeft >= carouselRef.current.scrollWidth - carouselRef.current.clientWidth - 10) {
-            carouselRef.current.scrollLeft = 0;
-          }
-        }
-      }
-      
-      animationId = requestAnimationFrame(autoScroll);
+    useEffect(() => {
+        const fetchMovies = async () => {
+            try {
+                const response = await moviesApi.getMoviesPaged(1, 10);
+                const movies = await Promise.all(response.movies.map(convertToMovie));
+                setMovieImages([...movies, ...movies]);
+            } catch (err) {
+                console.error('Failed to fetch recent movies:', err);
+            }
+        };
+
+        const fetchRecommendations = async () => {
+            if (!user?.id) return;
+            try {
+                const recs = await moviesApi.getCollaborativeRecommendations(user.id);
+                const recommended = await Promise.all(recs.map(convertToMovie));
+                setRecommendedMovies([...recommended, ...recommended]);
+            } catch (err) {
+                console.error('Failed to fetch recommended movies:', err);
+            }
+        };
+
+        fetchMovies();
+        fetchRecommendations();
+    }, [user]);
+
+    const useInfiniteScroll = (ref: React.RefObject<HTMLDivElement>, paused: boolean) => {
+        useEffect(() => {
+            let animationFrameId: number;
+            const scrollSpeed = 0.5;
+
+            const scroll = () => {
+                if (ref.current && !paused) {
+                    ref.current.scrollLeft += scrollSpeed;
+                    if (ref.current.scrollLeft >= ref.current.scrollWidth / 2) {
+                        ref.current.scrollLeft = 0;
+                    }
+                }
+                animationFrameId = requestAnimationFrame(scroll);
+            };
+
+            animationFrameId = requestAnimationFrame(scroll);
+            return () => cancelAnimationFrame(animationFrameId);
+        }, [ref, paused]);
     };
-    
-    animationId = requestAnimationFrame(autoScroll);
-    
-    return () => {
-      cancelAnimationFrame(animationId);
-    };
-  }, [isPaused]);
-  
-  // Auto-scroll effect for recommended movies
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    
-    let animationId: number;
-    let lastTimestamp = 0;
-    
-    const autoScroll = (timestamp: number) => {
-      if (!isRecommendedPaused && recommendedCarouselRef.current) {
-        // Calculate elapsed time since last frame
-        const elapsed = timestamp - lastTimestamp;
-        
-        if (elapsed > 16) { // roughly 60fps
-          // Slow scroll speed but in opposite direction
-          recommendedCarouselRef.current.scrollLeft -= 0.5;
-          lastTimestamp = timestamp;
-          
-          // Reset scroll position when reaching the start for infinite scroll effect
-          if (recommendedCarouselRef.current.scrollLeft <= 0) {
-            recommendedCarouselRef.current.scrollLeft = 
-              recommendedCarouselRef.current.scrollWidth - recommendedCarouselRef.current.clientWidth;
-          }
-        }
-      }
-      
-      animationId = requestAnimationFrame(autoScroll);
-    };
-    
-    animationId = requestAnimationFrame(autoScroll);
-    
-    return () => {
-      cancelAnimationFrame(animationId);
-    };
-  }, [isRecommendedPaused, isAuthenticated]);
-  
-  // Event handlers for recent movies carousel
-  const handleMouseEnter = () => setIsPaused(true);
-  const handleMouseLeave = () => setIsPaused(false);
-  
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!carouselRef.current) return;
-    setStartX(e.pageX - carouselRef.current.offsetLeft);
-    setScrollLeft(carouselRef.current.scrollLeft);
-  };
-  
-  const handleMouseLeaveOrUp = () => {
-    setStartX(null);
-  };
-  
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!startX || !carouselRef.current) return;
-    
-    const x = e.pageX - carouselRef.current.offsetLeft;
-    const walk = (x - startX) * 2; // Multiply for faster/slower scrolling
-    carouselRef.current.scrollLeft = scrollLeft - walk;
-  };
-  
-  // Event handlers for recommended movies carousel
-  const handleRecommendedMouseEnter = () => setIsRecommendedPaused(true);
-  const handleRecommendedMouseLeave = () => setIsRecommendedPaused(false);
-  
-  const handleRecommendedMouseDown = (e: React.MouseEvent) => {
-    if (!recommendedCarouselRef.current) return;
-    setStartXRecommended(e.pageX - recommendedCarouselRef.current.offsetLeft);
-    setScrollLeftRecommended(recommendedCarouselRef.current.scrollLeft);
-  };
-  
-  const handleRecommendedMouseLeaveOrUp = () => {
-    setStartXRecommended(null);
-  };
-  
-  const handleRecommendedMouseMove = (e: React.MouseEvent) => {
-    if (!startXRecommended || !recommendedCarouselRef.current) return;
-    
-    const x = e.pageX - recommendedCarouselRef.current.offsetLeft;
-    const walk = (x - startXRecommended) * 2;
-    recommendedCarouselRef.current.scrollLeft = scrollLeftRecommended - walk;
-  };
-  
-  return (
-    <div className="home-page">
-      <div className="full-width-hero">
-        <div className="hero-overlay">
-          <div className="hero-content">
-            {isAuthenticated ? (
-              <h1>Welcome, {user?.name.split(' ')[0]}</h1>
-            ) : (
-              <div className="welcome-container">
-                <h1>Welcome to</h1>
-                <img src={logoImage} alt="CineNiche" className="welcome-logo" />
-              </div>
-            )}
-            <p>Discover the world's most intriguing cult classics and rare films</p>
-            <Link to="/movies" className="btn-explore">Explore Collection</Link>
-          </div>
-        </div>
-      </div>
-      
-      {isAuthenticated && (
-        <div className="featured-films-section recommended-section">
-          <div className="section-header container" style={{ display: 'block', textAlign: 'center' }}>
-            <h2>Recommended For You</h2>
-          </div>
-          <div 
-            className="film-scroll-container" 
-            ref={recommendedCarouselRef}
-            onMouseEnter={handleRecommendedMouseEnter}
-            onMouseLeave={handleRecommendedMouseLeave}
-            onMouseDown={handleRecommendedMouseDown}
-            onMouseUp={handleRecommendedMouseLeaveOrUp}
-            onMouseMove={handleRecommendedMouseMove}
-          >
-            <div className="film-scroll-track">
-              {extendedRecommendedMovies.map((movie, index) => (
-                <div key={`recommended-${movie.id}-${index}`} className="film-item">
-                  <img src={movie.src} alt={movie.title} />
-                  <p>{movie.title}</p>
+
+    useInfiniteScroll(carouselRef, isPaused);
+    useInfiniteScroll(recommendedCarouselRef, isRecommendedPaused);
+
+    return (
+        <div className="home-page">
+            <div className="full-width-hero">
+                <div className="hero-overlay">
+                    <div className="hero-content">
+                        {isAuthenticated ? (
+                            <h1>Welcome, {user?.name.split(' ')[0]}</h1>
+                        ) : (
+                            <div className="welcome-container">
+                                <h1>Welcome to</h1>
+                                <img src={logoImage} alt="CineNiche" className="welcome-logo" />
+                            </div>
+                        )}
+                        <p>Discover the world's most intriguing cult classics and rare films</p>
+                        <Link to="/movies" className="btn-explore">Explore Collection</Link>
+                    </div>
                 </div>
-              ))}
             </div>
-          </div>
+
+            {isAuthenticated && recommendedMovies.length > 0 && (
+                <div className="featured-films-section recommended-section">
+                    <div className="section-header container">
+                        <h2>Recommended For You</h2>
+                    </div>
+                    <div
+                        className="film-scroll-container overflow-hidden"
+                        ref={recommendedCarouselRef}
+                        onMouseEnter={() => setIsRecommendedPaused(true)}
+                        onMouseLeave={() => setIsRecommendedPaused(false)}
+                    >
+                        <div className="film-scroll-track flex gap-4 w-max">
+                            {[...recommendedMovies, ...recommendedMovies].map((movie, idx) => (
+                                <Link to={`/movies/${movie.id}`} key={`rec-${movie.id}-${idx}`} className="film-item flex-none w-48">
+                                    <img src={movie.poster} alt={movie.title} />
+                                    <p>{movie.title}</p>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="featured-films-section">
+                <div className="section-header container">
+                    <h2>Recently Added</h2>
+                </div>
+                <div
+                    className="film-scroll-container overflow-hidden"
+                    ref={carouselRef}
+                    onMouseEnter={() => setIsPaused(true)}
+                    onMouseLeave={() => setIsPaused(false)}
+                >
+                    <div className="film-scroll-track flex gap-4 w-max">
+                        {[...movieImages, ...movieImages].map((movie, idx) => (
+                            <Link to={`/movies/${movie.id}`} key={`recent-${movie.id}-${idx}`} className="film-item flex-none w-48">
+                                <img src={movie.poster} alt={movie.title} />
+                                <p>{movie.title}</p>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            </div>
         </div>
-      )}
-      
-      <div className="featured-films-section">
-        <div className="section-header container" style={{ display: 'block', textAlign: 'center' }}>
-          <h2>Top Rated</h2>
-        </div>
-        <div 
-          className="film-scroll-container" 
-          ref={carouselRef}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseLeaveOrUp}
-          onMouseMove={handleMouseMove}
-        >
-          <div className="film-scroll-track">
-            {extendedMovieImages.map((movie, index) => (
-              <div key={`${movie.id}-${index}`} className="film-item">
-                <img src={movie.src} alt={movie.title} />
-                <p>{movie.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      <div className="container">
-        <div className="features">
-          <div className="feature">
-            <h3>Curated Selection</h3>
-            <p>Our catalog spans cult classics, international cinema, indie films, and niche documentaries.</p>
-          </div>
-          
-          <div className="feature">
-            <h3>Exclusive Content</h3>
-            <p>Access films unavailable on larger mainstream platforms.</p>
-          </div>
-          
-          <div className="feature">
-            <h3>Passionate Community</h3>
-            <p>Connect with fellow film enthusiasts who share your passion for unique cinema.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default HomePage; 
