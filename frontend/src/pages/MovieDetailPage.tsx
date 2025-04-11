@@ -733,25 +733,88 @@ useEffect(() => {
 
   const [similarMovies, setSimilarMovies] = useState<Movie[]>([]);
   
-  const handleSaveEdit = (updatedMovie: Movie) => {
-    // Update movie in our data store (would be an API call in real app)
-    moviesData = moviesData.map(m => 
-      m.id === updatedMovie.id ? updatedMovie : m
-    );
-    
-    // Update current movie state
-    setMovie(updatedMovie);
-    setIsEditMode(false);
-  };
-  
-  const handleDeleteMovie = () => {
+  const handleSaveEdit = async (updatedMovie: Movie) => {
     if (!movie) return;
     
-    // Remove movie from data store (would be an API call in real app)
-    moviesData = moviesData.filter(m => m.id !== movie.id);
+    setLoading(true);
     
-    // Redirect to movies page
-    navigate('/movies');
+    try {
+      // Format release year as number
+      const releaseYear = typeof updatedMovie.year === 'number' 
+        ? updatedMovie.year 
+        : parseInt(String(updatedMovie.year));
+        
+      // Format duration for API
+      const duration = `${updatedMovie.runtime} min`;
+      
+      // Format cast for API (from array to comma-separated string)
+      const cast = Array.isArray(updatedMovie.cast) 
+        ? updatedMovie.cast.join(', ') 
+        : updatedMovie.cast;
+        
+      // Default type to "Movie" since we don't have contentType in the Movie interface
+      const type = "Movie";
+      
+      // Create genres array from the genre string
+      const genres = updatedMovie.genre.split(',').map(g => g.trim());
+      
+      // Make API call to update the movie
+      const success = await moviesApi.updateMovie(updatedMovie.id, {
+        title: updatedMovie.title,
+        type,
+        director: updatedMovie.director,
+        cast,
+        country: updatedMovie.country,
+        release_year: releaseYear,
+        rating: updatedMovie.contentRating,
+        duration,
+        description: updatedMovie.description,
+        genres
+      });
+      
+      if (success) {
+        // Update current movie state on success
+        setMovie(updatedMovie);
+        setIsEditMode(false);
+        
+        // Show a success message
+        // You can add a toast or notification here
+      } else {
+        // Handle error
+        setError("Failed to update the movie. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error updating movie:", err);
+      setError("An error occurred while updating the movie.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDeleteMovie = async () => {
+    if (!movie) return;
+    
+    setLoading(true);
+    
+    try {
+      // Make API call to delete the movie
+      const success = await moviesApi.deleteMovie(movie.id);
+      
+      if (success) {
+        // Redirect to movies page on success
+        navigate('/movies');
+      } else {
+        // Handle error
+        setError("Failed to delete the movie. Please try again.");
+        setShowDeleteConfirm(false);
+      }
+    } catch (err) {
+      console.error("Error deleting movie:", err);
+      setError("An error occurred while deleting the movie.");
+      setShowDeleteConfirm(false);
+    } finally {
+      setLoading(false);
+    }
   };
   
   if (loading) {

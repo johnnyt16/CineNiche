@@ -193,6 +193,42 @@ export const moviesApi = {
     }
   },
   
+  // Update an existing movie (for admin use)
+  updateMovie: async (
+    id: string,
+    movieData: {
+      type: string;
+      title: string;
+      director?: string;
+      cast?: string;
+      country?: string;
+      release_year?: number;
+      rating?: string;
+      duration?: string;
+      description?: string;
+      genres?: string[];
+    }
+  ): Promise<boolean> => {
+    try {
+      const response = await api.put(`/movies/${id}`, movieData);
+      return response.status >= 200 && response.status < 300;
+    } catch (error) {
+      console.error(`Error updating movie ${id}:`, error);
+      return false;
+    }
+  },
+  
+  // Delete a movie (for admin use)
+  deleteMovie: async (id: string): Promise<boolean> => {
+    try {
+      const response = await api.delete(`/movies/${id}`);
+      return response.status >= 200 && response.status < 300;
+    } catch (error) {
+      console.error(`Error deleting movie ${id}:`, error);
+      return false;
+    }
+  },
+  
   getMovieRecommendations: async (showId: string, userId?: number): Promise<MovieTitle[]> => {
     try {
         const params = userId ? `?userId=${userId}&count=10` : '?count=10'; // Add count=10 parameter

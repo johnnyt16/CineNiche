@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logoImage from '../cineniche-high-resolution2.png';
 import { moviesApi, MovieTitle } from '../services/api';
+import { Film, Star, Users } from 'lucide-react';
 
 interface Movie {
     id: string;
@@ -99,7 +100,7 @@ const HomePage: React.FC = () => {
                                 <img src={logoImage} alt="CineNiche" className="welcome-logo" />
                             </div>
                         )}
-                        <p>Discover the world's most intriguing cult classics and rare films</p>
+                        <p>Discover the world's most intriguing cult classics and rare films from our collection of over 8,000 titles</p>
                         <Link to="/movies" className="btn-explore">Explore Collection</Link>
                     </div>
                 </div>
@@ -129,8 +130,8 @@ const HomePage: React.FC = () => {
             )}
 
             <div className="featured-films-section">
-                <div className="section-header container">
-                    <h2>Recently Added</h2>
+                <div className="section-header container text-center">
+                    <h2 className="text-center">Recently Added</h2>
                 </div>
                 <div
                     className="film-scroll-container overflow-hidden"
@@ -145,6 +146,37 @@ const HomePage: React.FC = () => {
                                 <p>{movie.title}</p>
                             </Link>
                         ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Feature Highlights Section - Moved after Recently Added */}
+            <div className="features-section compact-top">
+                <div className="container">
+                    <div className="features-grid">
+                        <div className="feature-card enhanced">
+                            <div className="feature-icon">
+                                <Film size={36} />
+                            </div>
+                            <h3>Curated Collection</h3>
+                            <p>Access our carefully curated library of rare cult classics, independent gems, and international masterpieces that you won't find on mainstream platforms.</p>
+                        </div>
+
+                        <div className="feature-card enhanced blue">
+                            <div className="feature-icon">
+                                <Star size={36} />
+                            </div>
+                            <h3>Personalized Recommendations</h3>
+                            <p>Our advanced algorithm learns your taste in film and suggests hidden treasures tailored to your unique preferences and viewing history.</p>
+                        </div>
+
+                        <div className="feature-card enhanced purple">
+                            <div className="feature-icon">
+                                <Users size={36} />
+                            </div>
+                            <h3>Cinephile Community</h3>
+                            <p>Join a passionate community of film enthusiasts. Read and share in-depth reviews, create watchlists, and discover new favorites through authentic recommendations.</p>
+                        </div>
                     </div>
                 </div>
             </div>

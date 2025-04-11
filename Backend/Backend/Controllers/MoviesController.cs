@@ -61,7 +61,8 @@ namespace CineNiche.API.Controllers
             [FromQuery] int page = 1, 
             [FromQuery] int pageSize = 20,
             [FromQuery] string? genre = null, // Add genre parameter
-            [FromQuery] string? type = null)   // Add type parameter (maps to contentType)
+            [FromQuery] string? type = null,   // Add type parameter (maps to contentType)
+            [FromQuery] string? sortBy = null)  // Add sortBy parameter
         {
             if (page < 1) page = 1;
             if (pageSize < 1 || pageSize > 100) pageSize = 20;
@@ -167,9 +168,21 @@ namespace CineNiche.API.Controllers
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             _logger.LogInformation("Filtered count: {Count}, Total Pages: {Pages}", totalCount, totalPages);
             
-            // Apply ordering, pagination to the FILTERED query
-            var movies = await query
-                .OrderBy(m => m.title ?? string.Empty)
+            // Apply sorting based on sortBy parameter
+            IOrderedQueryable<MovieTitle> orderedQuery;
+            if (sortBy != null && sortBy.Equals("id", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Applying sorting by ID (show_id)");
+                orderedQuery = query.OrderBy(m => m.show_id);
+            }
+            else
+            {
+                _logger.LogInformation("Applying default sorting by title");
+                orderedQuery = query.OrderBy(m => m.title ?? string.Empty);
+            }
+            
+            // Apply pagination to the ORDERED query
+            var movies = await orderedQuery
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
