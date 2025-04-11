@@ -1,7 +1,16 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link,useNavigate } from 'react-router-dom';
 
 const Footer: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleFooterClick = (path: string) => {
+    navigate(path); // Navigate first
+    setTimeout(() => { // Small delay to ensure DOM update
+      window.scrollTo(0, 0);
+    }, 10);
+  };
+
   return (
     <footer className="footer">
       <div className="footer-inner">
@@ -14,18 +23,18 @@ const Footer: React.FC = () => {
           <div className="footer-section">
             <h3>Quick Links</h3>
             <ul className="footer-links">
-              <li><Link to="/">Home</Link></li>
-              <li><Link to="/movies">Movies</Link></li>
-              <li><Link to="/login">Login</Link></li>
-              <li><Link to="/register">Sign Up</Link></li>
+              <li onClick={() => handleFooterClick('/')}><Link to="/">Home</Link></li>
+              <li onClick={() => handleFooterClick('/movies')}><Link to="/movies">Movies</Link></li>
+              <li onClick={() => handleFooterClick('/login')}><Link to="/login">Login</Link></li>
+              <li onClick={() => handleFooterClick('/register')}><Link to="/register">Sign Up</Link></li>
             </ul>
           </div>
           
           <div className="footer-section">
             <h3>Legal</h3>
             <ul className="footer-links">
-              <li><Link to="/privacy">Privacy Policy</Link></li>
-              <li><Link to="/terms">Terms of Service</Link></li>
+              <li onClick={() => handleFooterClick('/privacy')}><Link to="/privacy">Privacy Policy</Link></li>
+              <li onClick={() => handleFooterClick('/terms')}><Link to="/terms">Terms of Service</Link></li>
             </ul>
           </div>
           
@@ -33,7 +42,7 @@ const Footer: React.FC = () => {
             <h3>Connect</h3>
             <div className="social-links">
               <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">
-                <i className="fab fa-twitter"></i>
+                <i className="fab fa-x"></i>
               </a>
               <a href="https://facebook.com" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-facebook"></i>
