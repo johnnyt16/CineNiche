@@ -84,7 +84,8 @@ builder.Services.AddCors(options =>
                 "https://localhost:5173", 
                 "https://127.0.0.1:3000",
                 "https://127.0.0.1:5173",
-                "https://localhost:5212"
+                "https://localhost:5212",
+                "https://cineniche-fkazataxamgph8bu.eastus-01.azurewebsites.net" // Azure domain
             )
             .AllowAnyHeader()
             .AllowAnyMethod()

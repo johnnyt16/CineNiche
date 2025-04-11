@@ -6,6 +6,7 @@ using CineNiche.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims; // Add for ClaimsPrincipal extension methods
 using CineNiche.API.Validation;
+using Microsoft.Data.Sqlite; // Add for SqliteException
 
 namespace CineNiche.API.Controllers
 {
@@ -1089,42 +1090,244 @@ namespace CineNiche.API.Controllers
             }
         }
 
-        // Diagnostic endpoint for troubleshooting database connection issues
+        // Improved diagnostics endpoint for troubleshooting database connection issues
         [HttpGet("diagnostics")]
         [AllowAnonymous] // Allow anyone to get diagnostics in this testing phase
         public ActionResult<object> GetDiagnostics()
         {
+            Dictionary<string, object> diagnosticInfo = new Dictionary<string, object>();
+            
             try
             {
-                var dbPath = _context.Database.GetConnectionString();
-                var canConnect = _context.Database.CanConnect();
-                var movieCount = _context.Movies.Count();
-                var connectionInfo = new
+                // Basic environment info
+                diagnosticInfo["Environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown";
+                diagnosticInfo["ContentRootPath"] = AppDomain.CurrentDomain.BaseDirectory;
+                diagnosticInfo["CurrentDirectory"] = Directory.GetCurrentDirectory();
+                diagnosticInfo["MachineName"] = Environment.MachineName;
+                diagnosticInfo["OSVersion"] = Environment.OSVersion.ToString();
+                
+                // Configuration info
+                diagnosticInfo["ConnectionString"] = _context.Database.GetConnectionString() ?? "No connection string found";
+                
+                // Database file checks
+                try
                 {
-                    DatabasePath = dbPath,
-                    CanConnect = canConnect,
-                    MovieCount = movieCount,
-                    ContentRootPath = AppDomain.CurrentDomain.BaseDirectory,
-                    Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown"
-                };
-
+                    string connectionString = _context.Database.GetConnectionString() ?? "";
+                    string dbFilePath = connectionString.Replace("Data Source=", "");
+                    
+                    diagnosticInfo["DatabaseFilePath"] = dbFilePath;
+                    diagnosticInfo["DatabaseFileExists"] = File.Exists(dbFilePath);
+                    
+                    if (File.Exists(dbFilePath))
+                    {
+                        FileInfo fileInfo = new FileInfo(dbFilePath);
+                        diagnosticInfo["DatabaseFileSize"] = fileInfo.Length;
+                        diagnosticInfo["DatabaseFileLastModified"] = fileInfo.LastWriteTime;
+                        diagnosticInfo["DatabaseFileAttributes"] = fileInfo.Attributes.ToString();
+                    }
+                    
+                    // Check parent directory
+                    string dbDir = Path.GetDirectoryName(dbFilePath) ?? "";
+                    diagnosticInfo["DatabaseDirectoryExists"] = Directory.Exists(dbDir);
+                    
+                    if (Directory.Exists(dbDir))
+                    {
+                        diagnosticInfo["DirectoryContents"] = Directory.GetFiles(dbDir).ToList();
+                    }
+                }
+                catch (Exception fileEx)
+                {
+                    diagnosticInfo["FileCheckError"] = fileEx.Message;
+                }
+                
+                // Database connection check
+                try
+                {
+                    diagnosticInfo["CanConnect"] = _context.Database.CanConnect();
+                }
+                catch (Exception connEx)
+                {
+                    diagnosticInfo["ConnectionError"] = connEx.Message;
+                    diagnosticInfo["ConnectionStackTrace"] = connEx.StackTrace;
+                }
+                
+                // Try to count movies
+                try
+                {
+                    int movieCount = _context.Movies.Count();
+                    diagnosticInfo["MovieCount"] = movieCount;
+                }
+                catch (Exception countEx)
+                {
+                    diagnosticInfo["MovieCountError"] = countEx.Message;
+                    diagnosticInfo["MovieCountStackTrace"] = countEx.StackTrace;
+                }
+                
                 return Ok(new
                 {
                     Status = "Success",
                     Message = "Diagnostic information retrieved successfully",
-                    ConnectionInfo = connectionInfo
+                    DiagnosticInfo = diagnosticInfo
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting diagnostic information");
+                diagnosticInfo["Error"] = ex.Message;
+                diagnosticInfo["StackTrace"] = ex.StackTrace;
+                diagnosticInfo["InnerException"] = ex.InnerException?.Message;
+                
                 return StatusCode(500, new
                 {
                     Status = "Error",
                     Message = "Error getting diagnostic information",
-                    Error = ex.Message,
-                    StackTrace = ex.StackTrace,
-                    InnerException = ex.InnerException?.Message
+                    DiagnosticInfo = diagnosticInfo
+                });
+            }
+        }
+
+        // Database structure check endpoint
+        [HttpGet("dbcheck")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> CheckDatabaseStructure()
+        {
+            var result = new Dictionary<string, object>();
+            
+            try
+            {
+                result["DatabaseConnection"] = _context.Database.GetConnectionString();
+                
+                // Check database file exists
+                try
+                {
+                    string connectionString = _context.Database.GetConnectionString() ?? "";
+                    string dbFilePath = connectionString.Replace("Data Source=", "");
+                    result["DatabaseFilePath"] = dbFilePath;
+                    result["DatabaseFileExists"] = File.Exists(dbFilePath);
+                    
+                    if (File.Exists(dbFilePath))
+                    {
+                        FileInfo fi = new FileInfo(dbFilePath);
+                        result["DatabaseFileSize"] = fi.Length;
+                    }
+                }
+                catch (Exception pathEx)
+                {
+                    result["PathCheckError"] = pathEx.Message;
+                }
+                
+                // Check if database can connect
+                try
+                {
+                    result["CanConnect"] = _context.Database.CanConnect();
+                }
+                catch (Exception connEx)
+                {
+                    result["ConnectionError"] = connEx.Message;
+                }
+                
+                // Try to get the first 5 records using EF Core
+                try
+                {
+                    var firstFew = await _context.Movies
+                        .Take(5)
+                        .Select(m => new 
+                        {
+                            m.show_id,
+                            m.title,
+                            m.type,
+                            m.director,
+                            m.cast
+                        })
+                        .ToListAsync();
+                        
+                    result["FirstFewRecords"] = firstFew;
+                }
+                catch (Exception queryEx)
+                {
+                    result["QueryError"] = queryEx.Message;
+                    
+                    // If EF Core fails, try a basic ADO.NET approach
+                    try
+                    {
+                        var conn = _context.Database.GetDbConnection();
+                        if (conn.State != System.Data.ConnectionState.Open)
+                        {
+                            await conn.OpenAsync();
+                        }
+                        
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = "SELECT show_id, title, type FROM movies_titles LIMIT 3";
+                        
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        var rawResults = new List<Dictionary<string, object>>();
+                        
+                        while (await reader.ReadAsync())
+                        {
+                            var row = new Dictionary<string, object>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                var name = reader.GetName(i);
+                                var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                                row[name] = value;
+                            }
+                            rawResults.Add(row);
+                        }
+                        
+                        result["RawSqlResults"] = rawResults;
+                    }
+                    catch (Exception adoEx)
+                    {
+                        result["AdoNetError"] = adoEx.Message;
+                    }
+                }
+                
+                // Try to count records
+                try
+                {
+                    result["RecordCount"] = await _context.Movies.CountAsync();
+                }
+                catch (Exception countEx)
+                {
+                    result["CountError"] = countEx.Message;
+                }
+                
+                // Get table info using reflection
+                try
+                {
+                    var properties = typeof(MovieTitle).GetProperties()
+                        .Select(p => new { 
+                            Name = p.Name, 
+                            Type = p.PropertyType.Name,
+                            IsNullable = Nullable.GetUnderlyingType(p.PropertyType) != null
+                        })
+                        .ToList();
+                        
+                    result["ModelProperties"] = properties;
+                }
+                catch (Exception reflectionEx)
+                {
+                    result["ReflectionError"] = reflectionEx.Message;
+                }
+                
+                return Ok(new
+                {
+                    Status = "Success",
+                    Timestamp = DateTime.UtcNow,
+                    DiagnosticInfo = result
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking database structure");
+                result["FatalError"] = ex.Message;
+                result["FatalErrorStack"] = ex.StackTrace;
+                
+                return StatusCode(500, new
+                {
+                    Status = "Error",
+                    Timestamp = DateTime.UtcNow,
+                    DiagnosticInfo = result
                 });
             }
         }
