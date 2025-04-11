@@ -6,6 +6,7 @@ using CineNiche.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims; // Add for ClaimsPrincipal extension methods
 using CineNiche.API.Validation;
+using Microsoft.Data.Sqlite; // For SQLite exceptions
 
 namespace CineNiche.API.Controllers
 {
