@@ -47,12 +47,20 @@ namespace CineNiche.API.Controllers
         [AllowAnonymous] // Example: Allow anyone to get the main list of titles
         public async Task<ActionResult<List<MovieTitleDto>>> GetMovieTitles()
         {
-            var movies = await _context.Movies  
-                .OrderBy(m => m.title ?? string.Empty)
-                .ToListAsync();
-            
-            var movieDtos = movies.Select(m => MovieTitleDto.FromEntity(m)).ToList();
-            return Ok(movieDtos);
+            try
+            {
+                var movies = await _context.Movies  
+                    .OrderBy(m => m.title ?? string.Empty) // Add back null handling
+                    .ToListAsync();
+                
+                var movieDtos = movies.Select(m => MovieTitleDto.FromEntity(m)).ToList();
+                return Ok(movieDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching all movie titles");
+                return StatusCode(500, new { message = "An error occurred while fetching movies." });
+            }
         }
 
         [HttpGet("titles/paged")]

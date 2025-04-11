@@ -32,10 +32,6 @@ namespace CineNiche.API.Data
                 .Property(m => m.show_id)
                 .IsRequired();
     
-            modelBuilder.Entity<MovieTitle>()
-                .Property(m => m.title)
-                .IsRequired();
-    
             /*// Configure default values for booleans if needed
             modelBuilder.Entity<MovieTitle>()
                 .Property(m => m.osAction)

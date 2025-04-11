@@ -53,6 +53,11 @@ namespace CineNiche.API.DTOs
         
         public static MovieTitleDto FromEntity(MovieTitle entity)
         {
+            if (entity == null) 
+            {
+                throw new ArgumentNullException(nameof(entity), "Cannot create DTO from null entity");
+            }
+
             var dto = new MovieTitleDto
             {
                 show_id = entity.show_id,
@@ -71,8 +76,8 @@ namespace CineNiche.API.DTOs
             // Explicitly set RuntimeMinutes
             dto.RuntimeMinutes = ParseRuntime(entity.duration);
             
-            // Log the DTO for debugging
-            Console.WriteLine($"Created DTO for movie: {dto.title ?? "null"}, Fields: " +
+            // Log the DTO for debugging (avoid null reference exception)
+            Console.WriteLine($"Created DTO for movie: {dto.title ?? "(no title)"}, Fields: " +
                 $"ID={dto.show_id}, " +
                 $"Director={dto.director ?? "null"}, " +
                 $"Cast={dto.cast ?? "null"}, " +
@@ -81,7 +86,14 @@ namespace CineNiche.API.DTOs
                 $"Runtime={dto.RuntimeMinutes}");
             
             // Log what we're returning to help diagnose frontend issues
-            Console.WriteLine($"RETURNING DTO FOR {dto.title}: {System.Text.Json.JsonSerializer.Serialize(dto)}");
+            try
+            {
+                Console.WriteLine($"RETURNING DTO FOR {dto.title ?? "(no title)"}: {System.Text.Json.JsonSerializer.Serialize(dto)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error serializing DTO for logging: {ex.Message}");
+            }
             
             return dto;
         }

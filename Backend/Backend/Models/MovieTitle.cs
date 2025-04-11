@@ -9,7 +9,7 @@ public class MovieTitle
     public string show_id { get; set; } = null!; // Primary key - required
     
     public string? type { get; set; }
-    public string? title { get; set; }
+    public string? title { get; set; } // Changed back to nullable to match DB schema
     public string? director { get; set; }
     public string? cast { get; set; }
     public string? country { get; set; }
