@@ -276,6 +276,62 @@ export const moviesApi = {
     }
   },
 
+  // Get movies sorted by ID (for homepage carousel) to show different movies than the main listing
+  getMoviesSortedById: async (
+    page: number = 1, 
+    pageSize: number = 10
+  ): Promise<PaginatedResponse<MovieTitle>> => {
+    try {
+      // Build params for the request
+      const params: Record<string, any> = { 
+        page, 
+        pageSize,
+        sortBy: 'id' // Custom parameter to request ID sorting
+      };
+      
+      // Try to get from the paginated endpoint with ID sorting
+      const response = await api.get<PaginatedResponse<MovieTitle>>('/movies/titles/paged', { params });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching movies sorted by ID (page ${page}):`, error);
+      
+      // Fallback: If the API doesn't support sorting by ID,
+      // get regular paged results and sort them by ID on the client side
+      try {
+        const fallbackResponse = await api.get<PaginatedResponse<MovieTitle>>('/movies/titles/paged', { 
+          params: { page, pageSize: pageSize * 2 } // Get more items to have variety
+        });
+        
+        // Sort by ID (show_id)
+        const sortedMovies = [...fallbackResponse.data.movies]
+          .sort((a, b) => a.show_id.localeCompare(b.show_id))
+          .slice(0, pageSize);
+        
+        // Return a modified response with the sorted movies
+        return {
+          movies: sortedMovies,
+          pagination: {
+            ...fallbackResponse.data.pagination,
+            pageSize: pageSize
+          }
+        };
+      } catch (fallbackError) {
+        // Return empty result if all attempts fail
+        return {
+          movies: [],
+          pagination: {
+            currentPage: page,
+            pageSize: pageSize,
+            totalPages: 0,
+            totalCount: 0,
+            hasNext: false,
+            hasPrevious: page > 1
+          }
+        };
+      }
+    }
+  },
+
   getCollaborativeRecommendations: async (userId: number): Promise<MovieTitle[]> => {
     try {
         const response = await api.get(`/recommendations/collaborative/${userId}`);
@@ -781,17 +837,20 @@ export const usersApi = {
   // Get user reviews
   getUserReviews: async (userId: number): Promise<MovieRating[]> => {
     try {
-      // Read from localStorage instead of making an API call
-      const savedRatingsKey = `userRatings_${userId}`;
-      const savedRatingsJson = localStorage.getItem(savedRatingsKey);
-      
-      if (savedRatingsJson) {
-        return JSON.parse(savedRatingsJson);
-      }
-      
-      return [];
+      const response = await api.get(`/ratings/user/${userId}`);
+      return response.data;
     } catch (error) {
       console.error(`Error fetching reviews for user with ID ${userId}:`, error);
+      // Fallback to localStorage if API fails
+      try {
+        const savedRatingsKey = `userRatings_${userId}`;
+        const savedRatingsJson = localStorage.getItem(savedRatingsKey);
+        if (savedRatingsJson) {
+          return JSON.parse(savedRatingsJson);
+        }
+      } catch (e) {
+        // If localStorage also fails, just return empty array
+      }
       return [];
     }
   },
@@ -807,33 +866,34 @@ export const usersApi = {
         review: review || ''
       };
 
-      // Since the server endpoint doesn't exist, we'll store in localStorage
-      const savedRatingsKey = `userRatings_${userId}`;
-      let savedRatings: MovieRating[] = [];
+      // Send to backend API
+      const response = await api.post('/ratings', ratingData);
       
-      // Load existing ratings from localStorage
-      const savedRatingsJson = localStorage.getItem(savedRatingsKey);
-      if (savedRatingsJson) {
-        savedRatings = JSON.parse(savedRatingsJson);
+      // Also save to localStorage as backup
+      try {
+        const savedRatingsKey = `userRatings_${userId}`;
+        let savedRatings: MovieRating[] = [];
+        
+        const savedRatingsJson = localStorage.getItem(savedRatingsKey);
+        if (savedRatingsJson) {
+          savedRatings = JSON.parse(savedRatingsJson);
+        }
+        
+        const existingIndex = savedRatings.findIndex(r => r.show_id === movieId);
+        
+        if (existingIndex !== -1) {
+          savedRatings[existingIndex].rating = rating;
+          savedRatings[existingIndex].review = review || savedRatings[existingIndex].review || '';
+        } else {
+          savedRatings.push(ratingData);
+        }
+        
+        localStorage.setItem(savedRatingsKey, JSON.stringify(savedRatings));
+      } catch (e) {
+        // Ignore localStorage errors since we've already sent to backend
       }
       
-      // Check if this movie is already rated by the user
-      const existingIndex = savedRatings.findIndex(r => r.show_id === movieId);
-      
-      if (existingIndex !== -1) {
-        // Update existing rating
-        savedRatings[existingIndex].rating = rating;
-        savedRatings[existingIndex].review = review || savedRatings[existingIndex].review || '';
-      } else {
-        // Add new rating
-        savedRatings.push(ratingData);
-      }
-      
-      // Save back to localStorage
-      localStorage.setItem(savedRatingsKey, JSON.stringify(savedRatings));
-      
-      console.log(`Rating saved to localStorage: User ${userId}, Movie ${movieId}, Rating ${rating}, Review: ${review?.substring(0, 30)}...`);
-      return ratingData;
+      return response.data || ratingData;
     } catch (error) {
       console.error(`Error adding/updating rating for movie ${movieId} by user ${userId}:`, error);
       return null;
@@ -843,23 +903,22 @@ export const usersApi = {
   // Delete a movie rating
   deleteRating: async (userId: number, movieId: string): Promise<boolean> => {
     try {
-      // Since the server endpoint doesn't exist, we'll update localStorage
-      const savedRatingsKey = `userRatings_${userId}`;
-      let savedRatings: MovieRating[] = [];
+      // Delete from backend
+      await api.delete(`/ratings/${userId}/${movieId}`);
       
-      // Load existing ratings from localStorage
-      const savedRatingsJson = localStorage.getItem(savedRatingsKey);
-      if (savedRatingsJson) {
-        savedRatings = JSON.parse(savedRatingsJson);
-        
-        // Filter out the rating to delete
-        savedRatings = savedRatings.filter(r => r.show_id !== movieId);
-        
-        // Save back to localStorage
-        localStorage.setItem(savedRatingsKey, JSON.stringify(savedRatings));
+      // Also update localStorage
+      try {
+        const savedRatingsKey = `userRatings_${userId}`;
+        const savedRatingsJson = localStorage.getItem(savedRatingsKey);
+        if (savedRatingsJson) {
+          const savedRatings = JSON.parse(savedRatingsJson);
+          const updatedRatings = savedRatings.filter((r: MovieRating) => r.show_id !== movieId);
+          localStorage.setItem(savedRatingsKey, JSON.stringify(updatedRatings));
+        }
+      } catch (e) {
+        // Ignore localStorage errors since we've already deleted from backend
       }
       
-      console.log(`Rating removed from localStorage: User ${userId}, Movie ${movieId}`);
       return true;
     } catch (error) {
       console.error(`Error deleting rating for movie ${movieId} by user ${userId}:`, error);

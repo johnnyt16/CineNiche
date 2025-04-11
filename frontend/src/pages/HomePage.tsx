@@ -37,7 +37,7 @@ const HomePage: React.FC = () => {
     useEffect(() => {
         const fetchMovies = async () => {
             try {
-                const response = await moviesApi.getMoviesPaged(1, 10);
+                const response = await moviesApi.getMoviesSortedById(1, 10);
                 const movies = await Promise.all(response.movies.map(convertToMovie));
                 setMovieImages([...movies, ...movies]);
             } catch (err) {

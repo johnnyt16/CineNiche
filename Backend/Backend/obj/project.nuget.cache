@@ -1,12 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "OHlW6fxCFyU=",
+  "dgSpecHash": "4Kk7X/JcGW4=",
   "success": true,
   "projectFilePath": "/Users/johnmcconkie/Desktop/CineNiche/Backend/Backend/Backend.csproj",
   "expectedPackageFiles": [
     "/Users/johnmcconkie/.nuget/packages/azure.core/1.44.1/azure.core.1.44.1.nupkg.sha512",
     "/Users/johnmcconkie/.nuget/packages/azure.storage.blobs/12.24.0/azure.storage.blobs.12.24.0.nupkg.sha512",
     "/Users/johnmcconkie/.nuget/packages/azure.storage.common/12.23.0/azure.storage.common.12.23.0.nupkg.sha512",
+    "/Users/johnmcconkie/.nuget/packages/csvhelper/33.0.1/csvhelper.33.0.1.nupkg.sha512",
     "/Users/johnmcconkie/.nuget/packages/humanizer.core/2.14.1/humanizer.core.2.14.1.nupkg.sha512",
     "/Users/johnmcconkie/.nuget/packages/microsoft.aspnetcore.authentication.jwtbearer/8.0.15/microsoft.aspnetcore.authentication.jwtbearer.8.0.15.nupkg.sha512",
     "/Users/johnmcconkie/.nuget/packages/microsoft.aspnetcore.cors/2.3.0/microsoft.aspnetcore.cors.2.3.0.nupkg.sha512",

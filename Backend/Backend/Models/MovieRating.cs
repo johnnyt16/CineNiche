@@ -12,4 +12,6 @@ public class MovieRating
     public string show_id { get; set; } = null!; // Part of composite key - required
     
     public decimal? rating { get; set; } // Made nullable
+    
+    public string? review { get; set; } // Optional review text
 }
