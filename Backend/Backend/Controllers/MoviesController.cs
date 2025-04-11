@@ -44,22 +44,59 @@ namespace CineNiche.API.Controllers
 
         // Allow Anonymous access explicitly if needed for specific endpoints
         [HttpGet("titles")]
-        [AllowAnonymous] // Example: Allow anyone to get the main list of titles
+        [AllowAnonymous] // Allow anyone to get the main list of titles
         public async Task<ActionResult<List<MovieTitleDto>>> GetMovieTitles()
         {
             try
             {
+                _logger.LogInformation("GetMovieTitles: Starting database query");
+                
+                // First check if we can access the database at all
+                if (_context.Database.CanConnect())
+                {
+                    _logger.LogInformation("Database connection successful");
+                }
+                else
+                {
+                    _logger.LogError("Cannot connect to database");
+                    return StatusCode(500, new { message = "Database connection failed", detail = "Check database path and permissions" });
+                }
+                
+                // Check if the Movies table exists and has data
+                try
+                {
+                    var count = await _context.Movies.CountAsync();
+                    _logger.LogInformation($"Movies table contains {count} records");
+                }
+                catch (Exception tableEx)
+                {
+                    _logger.LogError(tableEx, "Error accessing Movies table");
+                    return StatusCode(500, new { message = "Error accessing Movies table", detail = tableEx.Message });
+                }
+                
                 var movies = await _context.Movies  
-                    .OrderBy(m => m.title ?? string.Empty) // Add back null handling
+                    .OrderBy(m => m.title ?? string.Empty)
                     .ToListAsync();
+                
+                _logger.LogInformation($"GetMovieTitles: Retrieved {movies.Count} movies from database");
                 
                 var movieDtos = movies.Select(m => MovieTitleDto.FromEntity(m)).ToList();
                 return Ok(movieDtos);
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Database update error fetching movie titles");
+                return StatusCode(500, new { message = "A database error occurred", detail = dbEx.InnerException?.Message });
+            }
+            catch (SqliteException sqlEx)
+            {
+                _logger.LogError(sqlEx, "SQLite error fetching movie titles");
+                return StatusCode(500, new { message = "A SQLite database error occurred", detail = sqlEx.Message });
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching all movie titles");
-                return StatusCode(500, new { message = "An error occurred while fetching movies." });
+                _logger.LogError(ex, "Error fetching all movie titles: {Message}", ex.Message);
+                return StatusCode(500, new { message = "An error occurred while fetching movies", detail = ex.Message });
             }
         }
 
@@ -1049,6 +1086,46 @@ namespace CineNiche.API.Controllers
             {
                 _logger.LogError(ex, "Error searching movies with query '{Query}'", query);
                 return StatusCode(500, new { message = "An error occurred while searching movies." });
+            }
+        }
+
+        // Diagnostic endpoint for troubleshooting database connection issues
+        [HttpGet("diagnostics")]
+        [AllowAnonymous] // Allow anyone to get diagnostics in this testing phase
+        public ActionResult<object> GetDiagnostics()
+        {
+            try
+            {
+                var dbPath = _context.Database.GetConnectionString();
+                var canConnect = _context.Database.CanConnect();
+                var movieCount = _context.Movies.Count();
+                var connectionInfo = new
+                {
+                    DatabasePath = dbPath,
+                    CanConnect = canConnect,
+                    MovieCount = movieCount,
+                    ContentRootPath = AppDomain.CurrentDomain.BaseDirectory,
+                    Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown"
+                };
+
+                return Ok(new
+                {
+                    Status = "Success",
+                    Message = "Diagnostic information retrieved successfully",
+                    ConnectionInfo = connectionInfo
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting diagnostic information");
+                return StatusCode(500, new
+                {
+                    Status = "Error",
+                    Message = "Error getting diagnostic information",
+                    Error = ex.Message,
+                    StackTrace = ex.StackTrace,
+                    InnerException = ex.InnerException?.Message
+                });
             }
         }
     }

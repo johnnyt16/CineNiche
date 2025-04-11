@@ -17,11 +17,39 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add configuration
 builder.Configuration.AddJsonFile("appsettings.json");
+builder.Configuration.AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
+builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddScoped<RecommendationService>(); 
+
+// Configure Database with better path handling
+var connectionString = builder.Configuration.GetConnectionString("MoviesDb");
+string dbPath = connectionString;
+
+// If we're using a relative path, ensure it's resolved correctly
+if (connectionString.Contains("./") || connectionString.Contains("../"))
+{
+    // For relative paths, resolve against ContentRootPath
+    string relativePath = connectionString.Replace("Data Source=", "");
+    dbPath = $"Data Source={Path.Combine(builder.Environment.ContentRootPath, relativePath)}";
+    Console.WriteLine($"Resolved database path: {dbPath}");
+
+    // Make sure the directory exists
+    string dbDir = Path.GetDirectoryName(Path.Combine(builder.Environment.ContentRootPath, relativePath));
+    if (!Directory.Exists(dbDir))
+    {
+        Console.WriteLine($"Creating database directory: {dbDir}");
+        Directory.CreateDirectory(dbDir);
+    }
+}
+else
+{
+    Console.WriteLine($"Using database path as-is: {dbPath}");
+}
+
 // Add services to the container
 builder.Services.AddDbContext<MoviesDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("MoviesDb")));
+    options.UseSqlite(dbPath));
 
 // Configure JSON serialization
 builder.Services.AddControllers()
