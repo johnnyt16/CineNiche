@@ -13,7 +13,7 @@
   --card-background: #16213e;
   --success-color: #04A8B4;
   --error-color: #F3587A;
-  --max-width: 1200px;
+  --max-width: 1600px; /* Increased from 1200px */
   --transition: all 0.3s ease;
   --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
@@ -139,7 +139,7 @@ input:focus, select:focus, textarea:focus {
   width: 100%;
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 3rem;
   box-sizing: border-box;
 }
 
@@ -167,7 +167,7 @@ input:focus, select:focus, textarea:focus {
   max-width: var(--max-width);
   margin: 0 auto;
   width: 100%;
-  padding: 0 1rem;
+  padding: 0 3rem;
 }
 
 .navbar-logo {
@@ -258,7 +258,7 @@ input:focus, select:focus, textarea:focus {
   max-width: var(--max-width);
   width: 100%;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 3rem;
 }
 
 .footer-grid {
@@ -680,7 +680,7 @@ input:focus, select:focus, textarea:focus {
   width: 100%;
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0rem;
+  padding: 0 3rem;  /* Add padding to match other containers */
 }
 
 .header-with-actions {
@@ -1201,7 +1201,7 @@ input:focus, select:focus, textarea:focus {
   width: 100%;
   max-width: var(--max-width); 
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 3rem;
 }
 
 .movie-header {
@@ -3817,4 +3817,43 @@ select::-ms-expand {
 
 .feature-card.enhanced.purple h3 {
   color: var(--purple-color);
+}
+
+/* Responsive max-width adjustment */
+@media (min-width: 2000px) {
+  :root {
+    --max-width: 1800px;
+  }
+}
+
+@media (min-width: 2400px) {
+  :root {
+    --max-width: 2000px;
+  }
+}
+
+/* Make sure containers still have padding on very large screens */
+@media (min-width: 1600px) {
+  .container, .navbar-container, .footer-inner {
+    padding: 0 4rem;
+  }
+}
+
+@media (min-width: 2000px) {
+  .container, .navbar-container, .footer-inner {
+    padding: 0 6rem;
+  }
+}
+
+/* Media queries for responsive padding */
+@media (max-width: 768px) {
+  .container, .navbar-container, .footer-inner, .movie-detail-page .container, .page-container.movies-page {
+    padding: 0 1.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .container, .navbar-container, .footer-inner, .movie-detail-page .container, .page-container.movies-page {
+    padding: 0 1rem;
+  }
 }
